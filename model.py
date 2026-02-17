@@ -220,6 +220,7 @@ class JetTransformer(nn.Module):
             logits_joint, 
             targets, 
             logarithmic = False,
+            topk = None,
 
     ):
         batch_size, seq_length, voc_size = logits_joint.shape
@@ -228,11 +229,22 @@ class JetTransformer(nn.Module):
         logits_joint = logits_joint[:,:-1]
         #apply softmax to get probs from logits
         probs = torch.softmax(logits_joint, dim = -1)
+        # --- TOP-K FILTERING ---
+        if topk is not None:
+            # find topk probs at each (B,S)
+            topk_vals, topk_idx = torch.topk(probs, k=topk, dim=-1)
+
+            # mask: True for entries in topk
+            mask = torch.zeros_like(probs, dtype=torch.bool)
+            mask.scatter_(-1, topk_idx, True)
+
+            # suppress everything else
+            probs = probs.masked_fill(~mask, 1.0)
 
         #compute target ids from target tokens
         target_ids = self.tuple_to_index(targets[..., 0], targets[..., 1], targets[..., 2], self.num_bins)
         
-        #shift targets to the right, because t_id1 contains what logit_0 should predict
+        #shift targets to the right, because t_id1 contains what logit_0 shWould predict
         target_ids = target_ids[:, 1:]
 
         padding_mask = target_ids == self.PAD_IDX
