@@ -1,6 +1,7 @@
 # project folders
 processed_data/
 output/
+.venv_hep_foundation_model/
 
 # Python caches
 __pycache__/
