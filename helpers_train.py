@@ -61,6 +61,6 @@ def save_model(model, log_dir, name):
     torch.save(model, os.path.join(log_dir, f"model_{name}.pt"))
 
 def load_model(model_path):
-    model = torch.load(model_path)
+    model = torch.load(model_path, weights_only = False)
 
     return model

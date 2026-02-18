@@ -128,5 +128,5 @@ if __name__ == "__main__":
 
     train(model, train_loader, val_loader, optimizer, args)
 
-    save_model(model, args.output_path, "test")
+    save_model(model, args.output_path, "test2")
 

@@ -42,6 +42,8 @@ def disc_to_token(df,
     x = df.to_numpy(dtype = np.int64)[:, : num_const * num_features] # this keeps only as many constituents we want in our data
     x = x.reshape(x.shape[0], -1, num_features) #this reshapes the data such that its 3 dimensional with [njets, nconst, nfeatures] [[[pt_1, eta_1, phi_1], ...],[[pt_1, eta_1, phi_1], ...],...]
     
+    x = x.copy()
+
     padding_mask = x == -1 #marks every where a invalid const is
 
     #add start and stop token if needed
