@@ -7,7 +7,7 @@ class FactorizedOutputHead(nn.Module):
     def __init__(self,
                  hidden_dim = 256,
                  num_features = 3,
-                 num_bins = (42, 32, 32)
+                 num_bins = (42, 32, 32) #+start and stop no padding
                  ):
         super().__init__()
 
@@ -55,7 +55,7 @@ class JetTransformer(nn.Module):
                  num_layers = 10,
                  num_heads = 4,
                  num_features = 3,
-                 num_bins = (40, 30, 30),
+                 num_bins = (40, 30, 30), #--> (41, 31, 31)
                  dropout = 0.1,
                  add_start = True,
                  add_stop = True,
@@ -128,12 +128,13 @@ class JetTransformer(nn.Module):
         #this is only used during training and randomly drops a percentage (0.1) of the neurons
         #this prevents overfitting, so the model learns not to rely on specific single neurons
         self.dropout = nn.Dropout(dropout)
-
+        #--- > (256 DIM EMBEDDING)
         self.output_layer = FactorizedOutputHead(hidden_dim = self.hidden_dim,
                                                  num_features = self.num_features,
                                                  num_bins = self.voc_bins, #here we do not count the padding bin
                                                 )
 
+        #---> logit (42*32*32) DIM 
         #define output layer
         self.criterion = nn.CrossEntropyLoss(ignore_index = self.PAD_IDX)
 

@@ -4,16 +4,20 @@ from model import JetTransformer
 from helpers_train import *
 import dataset
 from torch.utils.data import DataLoader
+import pandas as pd
+from torch.utils.tensorboard import SummaryWriter
 
 from tqdm import tqdm
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-def train(model, train_loader, val_loader, optimizer, args,
+def train(model, train_loader, val_loader, optimizer, scheduler, args,
           epochs = 10,
           ):
     model.train()
     model.to(device)
+
+    best_val_loss = float("inf")
 
     for epoch in range(epochs):
         total_train_loss = 0
@@ -35,6 +39,7 @@ def train(model, train_loader, val_loader, optimizer, args,
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            scheduler.step()
 
             total_train_loss += loss.item()
 
@@ -49,8 +54,35 @@ def train(model, train_loader, val_loader, optimizer, args,
         print(
             f"Epoch {epoch+1}/{epochs} finished | "
             f"Train Loss: {avg_train_loss:.4f} | "
-            f"Val Loss: {avg_val_loss:.4f}"
+            f"Val Loss: {avg_val_loss:.4f} | "
+            f"LR: {scheduler.get_last_lr()[0]}"
         )
+
+        if avg_val_loss < best_val_loss:
+            best_val_loss = avg_val_loss
+            save_checkpoint(model, optimizer, scheduler, epoch, avg_val_loss, args, name = args.name + "_best", path=os.path.join(args.output_path, "checkpoints"))
+            print(f"Checkpoint saved as: {args.name}_best.pt")
+
+        ### logging
+        log_data = {
+            "epoch": epoch,
+            "train_loss": avg_train_loss,
+            "val_loss": avg_val_loss,
+            "lr": optimizer.param_groups[0]["lr"],
+        }
+
+        df = pd.DataFrame([log_data])
+
+        df.to_csv(
+            os.path.join(args.output_path, f"{args.name}_training_log.csv"),
+            mode="a",
+            header=not os.path.exists(os.path.join(args.output_path, f"{args.name}_training_log.csv")),
+            index=False
+        )
+
+        writer.add_scalar("Loss/train", avg_train_loss, epoch)
+        writer.add_scalar("Loss/val", avg_val_loss, epoch)
+        writer.add_scalar("LR", optimizer.param_groups[0]["lr"], epoch)
 
 #for running the validation set
 def validate(model, dataloader):
@@ -75,6 +107,8 @@ def validate(model, dataloader):
 if __name__ == "__main__":
     args = parse_inputs()
 
+    writer = SummaryWriter(args.output_path)
+
     print("Running trainings process:")
     print(f"Running on device: {device}")
 
@@ -90,7 +124,7 @@ if __name__ == "__main__":
         add_stop=args.add_stop,
         add_start=args.add_start
         ),
-        batch_size=100)
+        batch_size=args.batch_size)
 
     print(f"Loading validation set")
     val_loader = DataLoader(JetDataSet(
@@ -102,7 +136,7 @@ if __name__ == "__main__":
         add_stop=args.add_stop,
         add_start=args.add_start
         ),
-        batch_size=100)
+        batch_size=args.batch_size)
 
     #construct model
     model = JetTransformer(
@@ -124,9 +158,15 @@ if __name__ == "__main__":
         model.parameters(), lr = args.lr,
     )
 
+    #create scheduler
+    scheduler = warmup_cosine_schedule(
+        optimizer,
+        warmup_steps=int(0.1*len(train_loader)*args.num_epochs),
+        total_steps=len(train_loader)*args.num_epochs
+    )
+
     #print(train_loader.dataset[:, : , :])
 
-    train(model, train_loader, val_loader, optimizer, args)
+    train(model, train_loader, val_loader, optimizer, scheduler, args, epochs=args.num_epochs)
 
-    save_model(model, args.output_path, "test2")
 

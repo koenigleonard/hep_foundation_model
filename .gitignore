@@ -3,6 +3,7 @@ processed_data/
 output/
 .venv_hep_foundation_model/
 core.*
+logs/
 
 # Python caches
 __pycache__/

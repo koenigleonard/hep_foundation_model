@@ -1,4 +1,5 @@
-import numpy as np
-import ipykernel
+import torch
 
-print("test")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+print(device)

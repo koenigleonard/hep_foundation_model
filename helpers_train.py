@@ -3,6 +3,21 @@ import os
 import numpy as np
 import pandas as pd
 from dataset import *
+from torch.optim.lr_scheduler import LambdaLR
+import math
+
+def warmup_cosine_schedule(optimizer, warmup_steps, total_steps):
+
+    def lr_lambda(step):
+        # warmup phase
+        if step < warmup_steps:
+            return step / float(warmup_steps)
+
+        # cosine decay phase
+        progress = (step - warmup_steps) / float(total_steps - warmup_steps)
+        return 0.5 * (1.0 + math.cos(math.pi * progress))
+
+    return LambdaLR(optimizer, lr_lambda)
 
 #cli
 def parse_inputs():
@@ -30,7 +45,7 @@ def parse_inputs():
         help="Whether to use a end particle (learn jet length as well)",
     )
     parser.set_defaults(add_stop = True)
-    parser.add_argument("--num_epochs", type=int, default=10, help="Number of epochs")
+    parser.add_argument("--num_epochs", type=int, default=20, help="Number of epochs")
     parser.add_argument("--lr", type=float, default=0.001, help="learning rate")
     parser.add_argument(
         "--hidden_dim", type=int, default=256, help="Hidden dim of the model"
@@ -51,7 +66,12 @@ def parse_inputs():
         "--output_path",
         type=str,
         help="Path for storing logs and model files",
+        default = "output/"
     )
+    parser.add_argument("--name", type=str, default = "latest", help = "Name of model")
+    parser.add_argument("--contin", "-c", action = "store_true", help = "if selected training is continued with specified file, all args are ignored and taken from original run")
+    parser.set_defaults(contin = False )
+    parser.add_argument("--batch_size", type=int, default = 100)
 
     args = parser.parse_args()
     return args
@@ -61,6 +81,20 @@ def save_model(model, log_dir, name):
     torch.save(model, os.path.join(log_dir, f"model_{name}.pt"))
 
 def load_model(model_path):
-    model = torch.load(model_path, weights_only = False)
+    model = torch.load(model_path)
 
     return model
+
+def save_checkpoint(model, optimizer, scheduler, epoch, val_loss, args, path="output/checkpoints", name = "latest"):
+    os.makedirs(path, exist_ok=True)
+
+    checkpoint = {
+        "epoch": epoch,
+        "model_state": model.state_dict(),
+        "optimizer_state": optimizer.state_dict(),
+        "scheduler_state": scheduler.state_dict(),
+        "val_loss": val_loss,
+        "args":vars(args)
+    }
+
+    torch.save(checkpoint, os.path.join(path, name + ".pt"))
