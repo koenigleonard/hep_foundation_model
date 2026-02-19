@@ -19,9 +19,9 @@ conda activate torchgpu
 #---- create log dir
 mkdir -p logs
 
-INPUTFILE="/home/rwth0934/hep_foundation_model/preprocessed_data/TTBar_train_processed.h5"
+INPUTFILE="/hpcwork/rwth0934/hep_foundation_model/preprocessed_data/TTBar_train_processed.h5"
 #INPUTFILE="processed_data/TTBar_5000_processed_train.h5"
-NAME="TTBar_600000_fixed"
+NAME="TTBar_600000"
 
 #print version of repo:
 python util/gitversion.py

@@ -12,7 +12,7 @@ def sample(
 ):
 
     model.sample(batch_size = args.batch_size,
-                 max_length = args.n_jets,
+                 max_length = args.max_length,
                  topk = args.topk
                  )
     return None
@@ -33,7 +33,7 @@ if __name__ == "__main__":
     train_args = checkpoint["args"]
     print(f"Args used for training: {train_args}")
 
-    model = model.JetTransformer(
+    sampleModel = model.JetTransformer(
         hidden_dim=train_args["hidden_dim"],
         num_layers=train_args["num_layers"],
         num_heads=train_args["num_heads"],
@@ -44,13 +44,13 @@ if __name__ == "__main__":
         add_stop=train_args["add_stop"],
         causal_mask = train_args["causal_mask"],
     )
-    model.to(device)
+    sampleModel.to(device)
 
-    model.load_state_dict(checkpoint["model_state"])
+    sampleModel.load_state_dict(checkpoint["model_state"])
 
-    model.eval()
+    sampleModel.eval()
 
     ## run sampling
     with torch.no_grad():
-        jets = sample(model, device, args, train_args,)
+        jets = sample(sampleModel, device, args, train_args,)
     

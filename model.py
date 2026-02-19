@@ -289,14 +289,17 @@ class JetTransformer(nn.Module):
         x = start.repeat(batch_size, 1, 1)
 
         print(f"Sampling on device: {device}")
-        print(start) 
-        print(x)
 
         finished = torch.zeros(batch_size, dtype = torch.bool, device = device)
 
         #run loop for for each length
         for _ in range(max_length):
+
             logits = self.forward(x) #gets all logits from the forward pass of the current batch of jets
+
+            for i in range(self.num_features):
+                x[:, : , i] = torch.where(x[:, :, i] == self.PAD_BIN[i], -1, x[:, :, i])
+
             next_logits = logits[:,-1,:] / temperature #safes only the last 
 
             #compute list of probability:
@@ -305,14 +308,58 @@ class JetTransformer(nn.Module):
             #sample the next id
             next_ids = torch.multinomial(probs, num_samples=1).squeeze(-1)
 
-            pt, eta, phi = self.index_to_tuple(next_ids, self.voc_bins)
-            next_tokens = torch.stack([pt, eta, phi], dim=-1).unsqueeze(1)
+            #if a jet is finished always set the next id to -1
+            next_ids[finished] = -1
 
-            print(f"Next ids are: {next_ids} --->")
+            #compute tuple from id if -1 -> (-1, -1, -1)
+            pt, eta, phi = self.index_to_tuple(next_ids, self.voc_bins)
+
+            #####################################
+            #debug for producing artificial stop tokens
+            for i in range(batch_size):
+                if pt[i] == 20:
+                    pt[i] = self.STOP_BIN[0]
+                    eta[i] = self.STOP_BIN[1]
+                    phi[i] = self.STOP_BIN[2]
+            ####################################
+
+            next_tokens = torch.stack([pt, eta, phi], dim=-1).unsqueeze(1)
 
             x = torch.cat([x, next_tokens], dim = 1)
 
-            print(f"Current jets: {x}")
+            #find if model produced a stop token (only if all bins are the designated stop bin)
+            stop_mask = (
+                (pt == self.STOP_BIN[0]) &
+                (eta == self.STOP_BIN[1]) &
+                (phi == self.STOP_BIN[2])
+            )
+
+            finished |= stop_mask #sets the jet to finished once there is a true in stop_mask at thats jet position
+
+
+            #stops for loop if all jets are done
+            if finished.all():
+                break
+
+
+        out = x.clone()
+        
+        #add padding if we stopped early for every all jets
+        if out.size(1) < max_length:
+            pad = torch.full(
+                (batch_size, max_length - out.size(1), 3),
+                -1,
+                device = device,
+                dtype = out.dtype,
+                )
+            out = torch.cat([out, pad], dim = 1)
+
+        #replace tokens after stop token with padding token
+
+        print(f"Finished jets: {out}")
+
+        return out    
+            
 
 
     def tuple_to_index(self, pt, eta, phi, num_bins):
