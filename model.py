@@ -70,6 +70,8 @@ class JetTransformer(nn.Module):
         self.num_bins = num_bins
         self.causal_mask = causal_mask
 
+        print("----- Initializing model -----")
+
         if add_start:
             self.num_bins = [x + 1 for x in self.num_bins]
             print("Added start token!")
@@ -77,19 +79,19 @@ class JetTransformer(nn.Module):
             self.num_bins = [x + 1 for x in self.num_bins]
             print("Added stop token!")
 
-        print(f"Num_bins: {self.num_bins}")
-
         num_bins = self.num_bins
 
         #this total voc size includes all physical bins + start + stop + pad --> (43,33,33)
         #this is only used for the input embedding --> the output does not make room for padding because we dont want to predict padding
         self.total_voc_bins = [x + 2 for x in self.num_bins] #+2 because num_bin describes the max value (incl) so 0...40 (41) + start + stop + pad = 44 bins
-        self.total_voc_size = np.prod(self.total_voc_bins)
+        self.total_voc_size = np.prod(self.total_voc_bins) #complete voc size with padding 44*34*34=50.864
 
-        self.voc_bins = [x + 1 for x in self.num_bins]
-        self.voc_size = np.prod(self.voc_bins)
+        self.voc_bins = [x + 1 for x in self.num_bins] #the max bin with padding included --> (43, 33, 33) (or the number of different bins without padding)
+        self.voc_size = np.prod(self.voc_bins) #voc sizes without padding (computed from voc_bins)
 
-        print(f"Total_voc_bin: {self.total_voc_bins}")
+        print(f"Max bins without padding: Num_bins: {self.num_bins}")
+        print(f"---> Number of different pt, eta, phi WITH padding: total_voc_bin: {self.total_voc_bins}")
+        print(f"---> Number of different pt, eta, phi WITHOUT padding: voc_bin: {self.voc_bins}")
 
         #chooses pad bin to total_bins +1 in each feature 
         self.PAD_BIN = [bins + 1 for bins in self.num_bins]
@@ -131,7 +133,7 @@ class JetTransformer(nn.Module):
         #--- > (256 DIM EMBEDDING)
         self.output_layer = FactorizedOutputHead(hidden_dim = self.hidden_dim,
                                                  num_features = self.num_features,
-                                                 num_bins = self.voc_bins, #here we do not count the padding bin
+                                                 num_bins = self.voc_bins, #here we do not count the padding bin but need 
                                                 )
 
         #---> logit (42*32*32) DIM 
@@ -197,10 +199,11 @@ class JetTransformer(nn.Module):
         #ignores padding -1
 
         #discard the final logit, there is no target for this logit
-        logits_joint = logits_joint[:,:-1].reshape(-1, self.voc_size) 
+        logits_joint = logits_joint[:,:-1].reshape(-1, self.voc_size) #voc size includes index for padding ids in (0,46.826)
 
         #compute target ids from target tokens
-        target_ids = self.tuple_to_index(targets[..., 0], targets[..., 1], targets[..., 2], self.num_bins)
+        #target_ids = self.tuple_to_index(targets[..., 0], targets[..., 1], targets[..., 2], self.num_bins) #those ids do not include padding ids in (-1, 44.394) ###wrong
+        target_ids = self.tuple_to_index(targets[..., 0], targets[..., 1], targets[..., 2], self.voc_bins) #those ids do not include padding ids in (-1, 46.826)
 
         #shift targets to the right, because t_id1 contains what logit_0 should predict
         target_ids = target_ids[:, 1:].reshape(-1) 
@@ -227,7 +230,7 @@ class JetTransformer(nn.Module):
         batch_size, seq_length, voc_size = logits_joint.shape
 
         #discard the final logit, there is no target for this logit
-        logits_joint = logits_joint[:,:-1]
+        logits_joint = logits_joint[:,:-1] # should be in (-1, 46.826)
         #apply softmax to get probs from logits
         probs = torch.softmax(logits_joint, dim = -1)
         # --- TOP-K FILTERING ---
@@ -243,8 +246,10 @@ class JetTransformer(nn.Module):
             probs = probs.masked_fill(~mask, 1.0)
 
         #compute target ids from target tokens
-        target_ids = self.tuple_to_index(targets[..., 0], targets[..., 1], targets[..., 2], self.num_bins)
-        
+        #target_ids = self.tuple_to_index(targets[..., 0], targets[..., 1], targets[..., 2], self.num_bins) # ids in (-1, 44394) ##wrong
+
+        target_ids = self.tuple_to_index(targets[..., 0], targets[..., 1], targets[..., 2], self.voc_bins) # ids in (-1, 46.826)
+
         #shift targets to the right, because t_id1 contains what logit_0 shWould predict
         target_ids = target_ids[:, 1:]
 
@@ -264,6 +269,51 @@ class JetTransformer(nn.Module):
             prob = probs.prod(dim = -1)
 
         return prob
+    @torch.no_grad() #not a trainable function
+    def sample(
+            self,
+            batch_size = 100,
+            max_length = 100,
+            device = None,
+            temperature = 1.0,
+            topk = None,
+    ):
+        
+        #sets the device
+        if device is None:
+            device = next(self.parameters()).device
+
+        #create jets with start tokens already added
+        start = torch.tensor(self.START_BIN, device = device).view(1, 1, 3) #get it the correct shape
+        #create batch of jets
+        x = start.repeat(batch_size, 1, 1)
+
+        print(f"Sampling on device: {device}")
+        print(start) 
+        print(x)
+
+        finished = torch.zeros(batch_size, dtype = torch.bool, device = device)
+
+        #run loop for for each length
+        for _ in range(max_length):
+            logits = self.forward(x) #gets all logits from the forward pass of the current batch of jets
+            next_logits = logits[:,-1,:] / temperature #safes only the last 
+
+            #compute list of probability:
+            probs = torch.softmax(next_logits, dim = -1)
+
+            #sample the next id
+            next_ids = torch.multinomial(probs, num_samples=1).squeeze(-1)
+
+            pt, eta, phi = self.index_to_tuple(next_ids, self.voc_bins)
+            next_tokens = torch.stack([pt, eta, phi], dim=-1).unsqueeze(1)
+
+            print(f"Next ids are: {next_ids} --->")
+
+            x = torch.cat([x, next_tokens], dim = 1)
+
+            print(f"Current jets: {x}")
+
 
     def tuple_to_index(self, pt, eta, phi, num_bins):
         """
@@ -273,10 +323,12 @@ class JetTransformer(nn.Module):
 
         index = pt + n_pt * eta + (n_pt*n_eta) * phi
         """
-        padding_mask = (pt == -1)
+        padding_mask = (pt == -1) 
+        padding_mask |= (pt == self.PAD_BIN[0])
 
         joint_id = pt + eta * num_bins[0] + (num_bins[0]*num_bins[1])* phi
-        joint_id[padding_mask] = self.PAD_IDX
+        #joint_id[padding_mask] = self.PAD_IDX
+        joint_id[padding_mask] = -1
 
         return joint_id
 

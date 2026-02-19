@@ -38,6 +38,8 @@ def train(model, train_loader, val_loader, optimizer, scheduler, args,
             #backward pass
             optimizer.zero_grad()
             loss.backward()
+            #clips gradient so they dont explode at the start
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
             scheduler.step()
 
@@ -46,7 +48,7 @@ def train(model, train_loader, val_loader, optimizer, scheduler, args,
             #update progress bar
             progress_bar.set_postfix(loss = loss.item())
 
-        avg_train_loss = total_train_loss / len(train_loader)
+        avg_train_loss = total_train_loss / len(train_loader) #dividing by number of batches
 
         ### run validation after epoc
         avg_val_loss = validate(model, val_loader)
@@ -101,7 +103,7 @@ def validate(model, dataloader):
             total_loss += loss.item()
             progress_bar.set_postfix(val_loss=loss.item())
 
-    avg_loss = total_loss / len(dataloader)
+    avg_loss = total_loss / len(dataloader) #dividing by number of batches
     return avg_loss
 
 if __name__ == "__main__":
@@ -114,7 +116,6 @@ if __name__ == "__main__":
 
     num_features = 3
     #load datasets
-    print(f"Loading training set")
     train_loader = DataLoader(JetDataSet(
         data_dir = args.data_path,
         tag = "train",
@@ -122,11 +123,13 @@ if __name__ == "__main__":
         num_bins=(args.n_pt, args.n_eta, args.n_phi),
         num_const=args.num_const,
         add_stop=args.add_stop,
-        add_start=args.add_start
+        add_start=args.add_start,
+        n_jets=args.n_jets
         ),
         batch_size=args.batch_size)
 
-    print(f"Loading validation set")
+    print(f"Training set size: {len(train_loader)}")
+
     val_loader = DataLoader(JetDataSet(
         data_dir = args.data_path.replace("train", "val"),
         tag = "val",
@@ -134,9 +137,12 @@ if __name__ == "__main__":
         num_bins=(args.n_pt, args.n_eta, args.n_phi),
         num_const=args.num_const,
         add_stop=args.add_stop,
-        add_start=args.add_start
+        add_start=args.add_start,
+        n_jets=args.n_jets_val
         ),
         batch_size=args.batch_size)
+
+    print(f"Validation set size: {len(val_loader)}")
 
     #construct model
     model = JetTransformer(

@@ -24,11 +24,20 @@ def process_h5(input_file: str, output_file: str, options):
     #creates n_x - 1 bins for each feature + 1 overflow and +1 underflow bin
     def get_binning(const_pt):
 
-        pt_bins = np.linspace(
-            np.quantile(np.log(const_pt[const_pt != 0]), options.lower_q),
-            np.quantile(np.log(const_pt[const_pt != 0]), options.upper_q),
-            options.n_pt,
-        ) 
+        if (options.pt_max is None) or (options.pt_min is None):
+            pt_bins = np.linspace(
+                np.quantile(np.log(const_pt[const_pt != 0]), options.lower_q),
+                np.quantile(np.log(const_pt[const_pt != 0]), options.upper_q),
+                options.n_pt,
+            ) 
+
+            print(f"pt_max and pt_min were not set! Choose bins: --pt_min {pt_bins[0]} --pt_max {pt_bins[-1]}")
+
+        else:
+            pt_bins = np.linspace(                
+                options.pt_min,
+                options.pt_max,
+                options.n_pt,)
 
         eta_bins = np.linspace(options.eta_min, options.eta_max, options.n_eta) #(eta_min, ..., eta_max)
         phi_bins = np.linspace(options.phi_min, options.phi_max, options.n_phi) #(phi_min, ..., phi_max)
@@ -76,7 +85,7 @@ def process_h5(input_file: str, output_file: str, options):
      
         for i in range(len(pts)):
             if np.all(pts[i, :-1] >= pts[i, 1:])==False:
-                print(pts[i, :])
+                #print(pts[i, :])
                 print(i)
 
     if not os.path.isfile(input_file):
@@ -138,6 +147,8 @@ def main():
     parser.add_argument("--n_pt", type=int, default=40, help="Number of pT bins (log-spaced)")
     parser.add_argument("--n_eta", type=int, default=30, help="Number of eta bins")
     parser.add_argument("--n_phi", type=int, default=30, help="Number of phi bins")
+    parser.add_argument("--pt_min", type=float, help="Optional pt min for binning (has to be given as log(pt))")
+    parser.add_argument("--pt_max", type=float, help="Optional pt max for binning (has to be given as log(pt))")
     parser.add_argument("--eta_min", default = -0.8, type=float, help="Optional eta min for binning (defaults -0.8)")
     parser.add_argument("--eta_max", default = 0.8, type=float, help="Optional eta max for binning (defaults 0.8)")
     parser.add_argument("--phi_min", default = -0.8, type=float, help="Optional phi min for binning (defaults -0.8)")

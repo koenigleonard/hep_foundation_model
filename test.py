@@ -4,25 +4,33 @@ import dataset
 import torch
 from torch.utils.data import DataLoader
 import torch.nn as nn
-import model
+from model import JetTransformer
 from helpers_train import *
+import matplotlib.pyplot as plt
+import ipykernel
 
-input_file = "processed_data/debug_small_train.h5"
-#input_file = "/net/data_ttk/hreyes/JetClass/JetClass_pt_part/JetClass_pt_part/TTBar_test.h5"
+device = "cpu"
 
-dataloader = DataLoader(
-    dataset.JetDataSet(input_file, "train"),
-    batch_size=5
+testModel = JetTransformer()
+
+testModel = load_model_checkpoint("output/checkpoints/debug_best.pt")
+
+testSet = DataLoader(
+    JetDataSet("processed_data/TTBar_5000_test.h5", "test", n_jets=2, num_const = 50),
+    batch_size=1,
 )
 
-testModel = load_model("output/model_test.pt")
-i = 1
-for x in dataloader:
+probabilities = np.array([])
+
+testTuples = torch.tensor([[[-1, -1, -1],[-1, -1, -1]]])
+
+print(f"testModel.tuple_to_index(-1, -1, -1, [43, 33, 33])={testModel.tuple_to_index(testTuples[..., 0], testTuples[..., 1], testTuples[..., 2], [43, 33, 33])}")
+
+for x in testSet:
+    
+    #print(f"targets {x}")
+
     logits = testModel.forward(x)
-    print(x)
-    print(testModel.probability(logits, x, logarithmic=True, 
-                                #topk=5000
-                                ))
+    probs = testModel.probability(logits, x, logarithmic= True, topk = 5000)
 
-
-
+    probabilities = np.append(probabilities, probs.detach().numpy())

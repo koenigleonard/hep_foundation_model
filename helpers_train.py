@@ -5,6 +5,7 @@ import pandas as pd
 from dataset import *
 from torch.optim.lr_scheduler import LambdaLR
 import math
+import model
 
 def warmup_cosine_schedule(optimizer, warmup_steps, total_steps):
 
@@ -72,7 +73,8 @@ def parse_inputs():
     parser.add_argument("--contin", "-c", action = "store_true", help = "if selected training is continued with specified file, all args are ignored and taken from original run")
     parser.set_defaults(contin = False )
     parser.add_argument("--batch_size", type=int, default = 100)
-
+    parser.add_argument("--n_jets", type=int, default = None)
+    parser.add_argument("--n_jets_val", type=int, default = None)
     args = parser.parse_args()
     return args
 
@@ -84,6 +86,33 @@ def load_model(model_path):
     model = torch.load(model_path)
 
     return model
+
+#just use for testing
+def load_model_checkpoint(checkpoint_path):
+
+    num_features = 3
+
+    checkpoint = torch.load(checkpoint_path, map_location=torch.device('cpu'))
+
+    train_args = checkpoint["args"]
+    print(f"Args used for training: {train_args}")
+
+    newModel = model.JetTransformer(
+        hidden_dim=train_args["hidden_dim"],
+        num_layers=train_args["num_layers"],
+        num_heads=train_args["num_heads"],
+        num_features=num_features,
+        num_bins=(train_args["n_pt"], train_args["n_eta"], train_args["n_phi"]),
+        dropout=train_args["dropout"],
+        add_start=train_args["add_start"],
+        add_stop=train_args["add_stop"],
+        causal_mask = train_args["causal_mask"],
+    )
+
+    newModel.load_state_dict(checkpoint["model_state"])
+
+    return newModel
+
 
 def save_checkpoint(model, optimizer, scheduler, epoch, val_loss, args, path="output/checkpoints", name = "latest"):
     os.makedirs(path, exist_ok=True)

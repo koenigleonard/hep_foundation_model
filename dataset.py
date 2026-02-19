@@ -12,8 +12,10 @@ class JetDataSet(Dataset):
                  num_const = 50,
                  add_stop = True,
                  add_start = True,
+                 n_jets = None
                  ):
-        df = pd.read_hdf(data_dir, key = "discretized")
+        print(f"Loading Dataset: {tag} | n_jets = {n_jets} | {data_dir}")
+        df = pd.read_hdf(data_dir, key = "discretized", stop = n_jets)
         self.data = disc_to_token(df,
                                   num_features=num_features,
                                   num_bins=num_bins,
