@@ -19,6 +19,9 @@ def train(model, train_loader, val_loader, optimizer, scheduler, args,
 
     best_val_loss = float("inf")
 
+    if not args.contin:
+        os.remove(os.path.join(args.output_path, f"{args.name}_training_log.csv"))
+
     for epoch in range(epochs):
         total_train_loss = 0
 

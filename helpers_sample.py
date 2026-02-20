@@ -10,6 +10,8 @@ def parse_inputs():
     parser.add_argument("--max_length", type = int, default = 100, help = "Max length of a generated jet" )
     parser.add_argument("--batch_size", type = int, default = 10, help = "Number of jets sampled together")
     parser.add_argument("--topk", type = int, help = "If set particles get only sampled from the <topk> most probable")
+    parser.add_argument("--output_file", type = str, default = "output/sampled_jets/jets.h5", help = "file name of output h5 file")
+    parser.add_argument("--temperature", type = float , default = 1.0)
 
     args = parser.parse_args()
     return args

@@ -69,6 +69,8 @@ class JetTransformer(nn.Module):
         self.num_features = num_features
         self.num_bins = num_bins
         self.causal_mask = causal_mask
+        self.add_start = add_start
+        self.add_stop = add_stop
 
         print("----- Initializing model -----")
 
@@ -243,7 +245,7 @@ class JetTransformer(nn.Module):
             mask.scatter_(-1, topk_idx, True)
 
             # suppress everything else
-            probs = probs.masked_fill(~mask, 1.0)
+            probs = probs.masked_fill(~mask, 0.0)
 
         #compute target ids from target tokens
         #target_ids = self.tuple_to_index(targets[..., 0], targets[..., 1], targets[..., 2], self.num_bins) # ids in (-1, 44394) ##wrong
@@ -288,7 +290,7 @@ class JetTransformer(nn.Module):
         #create batch of jets
         x = start.repeat(batch_size, 1, 1)
 
-        print(f"Sampling on device: {device}")
+        #print(f"Sampling on device: {device}")
 
         finished = torch.zeros(batch_size, dtype = torch.bool, device = device)
 
@@ -316,11 +318,11 @@ class JetTransformer(nn.Module):
 
             #####################################
             #debug for producing artificial stop tokens
-            for i in range(batch_size):
-                if pt[i] == 20:
-                    pt[i] = self.STOP_BIN[0]
-                    eta[i] = self.STOP_BIN[1]
-                    phi[i] = self.STOP_BIN[2]
+            #for i in range(batch_size):
+            #    if pt[i] == 20:
+            #        pt[i] = self.STOP_BIN[0]
+            #        eta[i] = self.STOP_BIN[1]
+            #        phi[i] = self.STOP_BIN[2]
             ####################################
 
             next_tokens = torch.stack([pt, eta, phi], dim=-1).unsqueeze(1)
@@ -336,7 +338,6 @@ class JetTransformer(nn.Module):
 
             finished |= stop_mask #sets the jet to finished once there is a true in stop_mask at thats jet position
 
-
             #stops for loop if all jets are done
             if finished.all():
                 break
@@ -345,23 +346,30 @@ class JetTransformer(nn.Module):
         out = x.clone()
         
         #add padding if we stopped early for every all jets
-        if out.size(1) < max_length:
+        if out.size(1) < max_length+1:
             pad = torch.full(
-                (batch_size, max_length - out.size(1), 3),
+                (batch_size, max_length - out.size(1) + 1, 3),
                 -1,
                 device = device,
                 dtype = out.dtype,
                 )
             out = torch.cat([out, pad], dim = 1)
 
-        #replace tokens after stop token with padding token
+        #remove start tokens and replace stop tokens with padding to look like input trainings data
+        if self.add_start:
+            out = out[:,1:]
+        
+        if self.add_stop:
+            stop_mask = (
+                (out[:,:,0] == self.STOP_BIN[0]) &
+                (out[:,:,1] == self.STOP_BIN[1]) &
+                (out[:,:,2] == self.STOP_BIN[2])
+            )
 
-        print(f"Finished jets: {out}")
+            out[stop_mask] = -1
 
         return out    
             
-
-
     def tuple_to_index(self, pt, eta, phi, num_bins):
         """
         Map (pt, eta, phi) bin indices into single vocabulary index.
