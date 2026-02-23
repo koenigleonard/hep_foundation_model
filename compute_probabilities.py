@@ -31,15 +31,23 @@ def probabilities(
             output_file = open(args.output_file, mode="w", newline="")
             writer = csv.writer(output_file)
 
-            writer.writerow(["probs"])
+            writer.writerow(["probs","multiplicity"])
 
             for x in progress_bar:
                 x = x.to(device)
+
+                valid_mask = ~((x == -1).any(dim=-1))   
+                seq_lens = valid_mask.sum(dim = 1)
+
+                #create logits from forward pass
                 logits = model.forward(x)
 
                 #compute actual probabilities
                 probs = model.probability(logits, x, logarithmic = True)
-                writer.writerows(probs.unsqueeze(1).tolist())
+
+                result = torch.stack((probs, seq_lens), dim = 1)
+
+                writer.writerows(result.tolist())
 
     total_time = time.time() - start_time
     print(f"\nFinished calculating probabily of {n_jets} jets")
