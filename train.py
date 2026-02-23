@@ -5,7 +5,6 @@ from helpers_train import *
 import dataset
 from torch.utils.data import DataLoader
 import pandas as pd
-from torch.utils.tensorboard import SummaryWriter
 
 from tqdm import tqdm
 
@@ -19,8 +18,9 @@ def train(model, train_loader, val_loader, optimizer, scheduler, args,
 
     best_val_loss = float("inf")
 
-    if not args.contin:
-        os.remove(os.path.join(args.output_path, f"{args.name}_training_log.csv"))
+    # if not args.contin:
+    #     os.remove(os.path.join(args.output_path, f"{args.name}_training_log.csv"))
+
 
     for epoch in range(epochs):
         total_train_loss = 0
@@ -85,9 +85,6 @@ def train(model, train_loader, val_loader, optimizer, scheduler, args,
             index=False
         )
 
-        writer.add_scalar("Loss/train", avg_train_loss, epoch)
-        writer.add_scalar("Loss/val", avg_val_loss, epoch)
-        writer.add_scalar("LR", optimizer.param_groups[0]["lr"], epoch)
 
 #for running the validation set
 def validate(model, dataloader):
@@ -112,8 +109,6 @@ def validate(model, dataloader):
 if __name__ == "__main__":
     args = parse_inputs()
 
-    writer = SummaryWriter(args.output_path)
-
     print("Running trainings process:")
     print(f"Running on device: {device}")
 
@@ -127,7 +122,8 @@ if __name__ == "__main__":
         num_const=args.num_const,
         add_stop=args.add_stop,
         add_start=args.add_start,
-        n_jets=args.n_jets
+        n_jets=args.n_jets,
+        key = args.input_key,
         ),
         batch_size=args.batch_size)
 
@@ -141,7 +137,8 @@ if __name__ == "__main__":
         num_const=args.num_const,
         add_stop=args.add_stop,
         add_start=args.add_start,
-        n_jets=args.n_jets_val
+        n_jets=args.n_jets_val,
+        key = args.input_key,
         ),
         batch_size=args.batch_size)
 

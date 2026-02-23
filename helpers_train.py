@@ -75,6 +75,7 @@ def parse_inputs():
     parser.add_argument("--batch_size", type=int, default = 100)
     parser.add_argument("--n_jets", type=int, default = None)
     parser.add_argument("--n_jets_val", type=int, default = None)
+    parser.add_argument("--input_key", type = str, default = "discretized", help = "if the key of table in the h5 is different it can be specified here")
     args = parser.parse_args()
     return args
 
