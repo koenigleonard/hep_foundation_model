@@ -299,6 +299,7 @@ class JetTransformer(nn.Module):
 
             logits = self.forward(x) #gets all logits from the forward pass of the current batch of jets
 
+            #replaces the padding bin as (43,33,33) with with -1 
             for i in range(self.num_features):
                 x[:, : , i] = torch.where(x[:, :, i] == self.PAD_BIN[i], -1, x[:, :, i])
 
@@ -306,6 +307,18 @@ class JetTransformer(nn.Module):
 
             #compute list of probability:
             probs = torch.softmax(next_logits, dim = -1)
+
+            # --- TOP-K FILTERING ---
+            if topk is not None:
+                # find topk probs at each (B,S)
+                topk_vals, topk_idx = torch.topk(probs, k=topk, dim=-1)
+
+                # mask: True for entries in topk
+                mask = torch.zeros_like(probs, dtype=torch.bool)
+                mask.scatter_(-1, topk_idx, True)
+
+                # suppress everything else
+                probs = probs.masked_fill(~mask, 0.0)
 
             #sample the next id
             next_ids = torch.multinomial(probs, num_samples=1).squeeze(-1)
