@@ -19,11 +19,11 @@ conda activate torchgpu
 #---- create log dir
 mkdir -p logs
 
-MODELFILE="/home/eu732103/master_thesis/hep_foundation_model/output/checkpoints/TOP_600000_best.pt"
+MODELFILE="/hpcwork/rwth0934/hep_foundation_model/checkpoints/checkpoints/TOP_600000_best.pt"
 INPUTFILE="/hpcwork/rwth0934/hep_foundation_model/preprocessed_data/Top_test_discrete_pT_eta_phi.h5"
-OUTPUTFILE="output/plot_data/top_top.csv"
+OUTPUTFILE="output/plot_data/test.csv"
 
-#print version of repo:
+#print version of repo:h/hep_foundation_model/outp
 python util/gitversion.py
 
-python compute_probabilities.py --model_path "$MODELFILE" --data_path "$INPUTFILE" --output_file "$OUTPUTFILE" --n_jets 50000 --batch_size 100 --input_key df
+python compute_probabilities.py --model_path "$MODELFILE" --data_path "$INPUTFILE" --output_file "$OUTPUTFILE" --n_jets 5000 --batch_size 100 --input_key df

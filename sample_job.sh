@@ -19,7 +19,7 @@ conda activate torchgpu
 #---- create log dir
 mkdir -p logs
 
-INPUTFILE="/home/eu732103/master_thesis/hep_foundation_model/output/checkpoints/QCD_600000_best.pt"
+INPUTFILE="/hpcwork/rwth0934/hep_foundation_model/checkpoints/checkpoints/QCD_600000_best.pt"
 #INPUTFILE="processed_data/TTBar_5000_processed_train.h5"
 #OUTPUTFILE="/hpcwork/rwth0934/hep_foundation_model/sampled_jets/QCD_600000_sampled_100000_topk.h5"
 OUTPUTFILE=output/sampled_jets/test_jets.h5

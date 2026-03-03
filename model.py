@@ -381,6 +381,15 @@ class JetTransformer(nn.Module):
 
             out[stop_mask] = -1
 
+        #shift bins back so underflow 1-->0 and overflow 41-->40 because there no start tokens anymore
+        if self.add_start:    
+            padding_mask = (
+                (out[:,:,0] == -1) &
+                (out[:,:,1] == -1) &
+                (out[:,:,2] == -1)
+            )
+            out[~padding_mask] -= 1
+            
         return out    
             
     def tuple_to_index(self, pt, eta, phi, num_bins):

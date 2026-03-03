@@ -108,7 +108,10 @@ if __name__ == "__main__":
     )
     sampleModel.to(device)
 
-    sampleModel.load_state_dict(checkpoint["model_state"])
+    sampleModel.load_state_dict({
+                k.replace("_orig_mod.", ""): v
+                for k, v in checkpoint["model_state"].items()
+                })
 
     sampleModel.eval()
 
