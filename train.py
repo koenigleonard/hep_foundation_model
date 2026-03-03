@@ -6,21 +6,68 @@ import dataset
 from torch.utils.data import DataLoader
 import pandas as pd
 
+from torch.amp import autocast, GradScaler
+
 from tqdm import tqdm
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+torch.set_float32_matmul_precision("high")
+
+num_features = 3
+
+def build_model(args):
+    
+    model = JetTransformer(
+        hidden_dim=args.hidden_dim,
+        num_layers=args.num_layers,
+        num_heads=args.num_heads,
+        num_features=num_features,
+        num_bins=(args.n_pt, args.n_eta, args.n_phi),
+        dropout=args.dropout,
+        add_start=args.add_start,
+        add_stop=args.add_stop,
+        causal_mask = args.causal_mask,
+    )
+
+    return model
+
+def build_dataloader(args, tag = "train"):
+    data_loader = DataLoader(JetDataSet(
+        data_dir = args.data_path.replace("train", tag),
+        tag = tag,
+        num_features=num_features,
+        num_bins=(args.n_pt, args.n_eta, args.n_phi),
+        num_const=args.num_const,
+        add_stop=args.add_stop,
+        add_start=args.add_start,
+        n_jets=args.n_jets,
+        key = args.input_key,
+        ),
+        batch_size=args.batch_size,
+        shuffle=True, # optimization
+        num_workers=4,            
+        pin_memory=True,
+        persistent_workers=True,
+        prefetch_factor=4,)
+
+    return data_loader
+
+
 def train(model, train_loader, val_loader, optimizer, scheduler, args,
           epochs = 10,
           ):
-    model.train()
+    
     model.to(device)
+    model = torch.compile(model) #pre compiles the model for faster performance
+    model.train()
+
+    scaler = GradScaler("cuda")
 
     best_val_loss = float("inf")
 
     # if not args.contin:
     #     os.remove(os.path.join(args.output_path, f"{args.name}_training_log.csv"))
-
 
     for epoch in range(epochs):
         total_train_loss = 0
@@ -33,17 +80,18 @@ def train(model, train_loader, val_loader, optimizer, scheduler, args,
         for x in progress_bar:
             #move batch to gpu if possible
             x = x.to(device)
-
+            optimizer.zero_grad(set_to_none = True)
             #compute one forward pass and the loss on the data passed into the network
-            logits = model(x)
-            loss = model.loss(logits, x) #the target is the data we have trained with
+            with autocast(device_type = "cuda"):
+                logits = model(x)
+                loss = model.loss(logits, x) #the target is the data we have trained with
             
             #backward pass
-            optimizer.zero_grad()
-            loss.backward()
+            scaler.scale(loss).backward()
             #clips gradient so they dont explode at the start
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-            optimizer.step()
+            #torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            scaler.step(optimizer)
+            scaler.update()
             scheduler.step()
 
             total_train_loss += loss.item()
@@ -112,50 +160,15 @@ if __name__ == "__main__":
     print("Running trainings process:")
     print(f"Running on device: {device}")
 
-    num_features = 3
     #load datasets
-    train_loader = DataLoader(JetDataSet(
-        data_dir = args.data_path,
-        tag = "train",
-        num_features=num_features,
-        num_bins=(args.n_pt, args.n_eta, args.n_phi),
-        num_const=args.num_const,
-        add_stop=args.add_stop,
-        add_start=args.add_start,
-        n_jets=args.n_jets,
-        key = args.input_key,
-        ),
-        batch_size=args.batch_size)
-
+    train_loader = build_dataloader(args, tag = "train")
     print(f"Training set size: {len(train_loader)}")
 
-    val_loader = DataLoader(JetDataSet(
-        data_dir = args.data_path.replace("train", "val"),
-        tag = "val",
-        num_features=num_features,
-        num_bins=(args.n_pt, args.n_eta, args.n_phi),
-        num_const=args.num_const,
-        add_stop=args.add_stop,
-        add_start=args.add_start,
-        n_jets=args.n_jets_val,
-        key = args.input_key,
-        ),
-        batch_size=args.batch_size)
-
+    val_loader = build_dataloader(args, tag = "val")
     print(f"Validation set size: {len(val_loader)}")
 
     #construct model
-    model = JetTransformer(
-        hidden_dim=args.hidden_dim,
-        num_layers=args.num_layers,
-        num_heads=args.num_heads,
-        num_features=num_features,
-        num_bins=(args.n_pt, args.n_eta, args.n_phi),
-        dropout=args.dropout,
-        add_start=args.add_start,
-        add_stop=args.add_stop,
-        causal_mask = args.causal_mask,
-    )
+    model = build_model(args)
 
     model.to(device)
 
