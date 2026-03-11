@@ -20,10 +20,15 @@ conda activate torchgpu
 mkdir -p logs
 
 MODELFILE="/hpcwork/rwth0934/hep_foundation_model/checkpoints/checkpoints/TOP_600000_best.pt"
-INPUTFILE="/hpcwork/rwth0934/hep_foundation_model/preprocessed_data/Top_test_discrete_pT_eta_phi.h5"
-OUTPUTFILE="output/plot_data/test.csv"
+INPUTFILE="/hpcwork/rwth0934/hep_foundation_model/preprocessed_data/QCD_test_discrete_pT_eta_phi.h5"
+OUTPUTFILE="output/plot_data/probs_50_epochs/top_qcd.csv"
 
 #print version of repo:h/hep_foundation_model/outp
 python util/gitversion.py
 
-python compute_probabilities.py --model_path "$MODELFILE" --data_path "$INPUTFILE" --output_file "$OUTPUTFILE" --n_jets 5000 --batch_size 100 --input_key df
+python compute_probabilities.py --model_path "$MODELFILE" \
+                                --data_path "$INPUTFILE" \
+                                --output_file "$OUTPUTFILE" \
+                                --n_jets 50000 \
+                                --batch_size 100 \
+                                --input_key df
