@@ -3,7 +3,7 @@
 ### Job Parameters 
 #SBATCH --ntasks=1              
 #SBATCH --time=01:00:00         
-#SBATCH --job-name=sample_qcd
+#SBATCH --job-name=sample_top
 #SBATCH --output=logs/%x_%j.out
 #SBATCH --account=rwth0934  # Replace with your project-id or delete the line
 #SBATCH --gres=gpu:1
@@ -16,15 +16,30 @@
 source ~/miniforge/etc/profile.d/conda.sh
 conda activate torchgpu
 
+export HDF5_USE_FILE_LOCKING=FALSE
+
+module purge
+module load CUDA
+module load intel
+
 #---- create log dir
 mkdir -p logs
 
-INPUTFILE="/hpcwork/rwth0934/hep_foundation_model/checkpoints/checkpoints/QCD_600000_best.pt"
+INPUTFILE="/hpcwork/rwth0934/hep_foundation_model/checkpoints/checkpoints/TOP_600000_best.pt"
 #INPUTFILE="processed_data/TTBar_5000_processed_train.h5"
-#OUTPUTFILE="/hpcwork/rwth0934/hep_foundation_model/sampled_jets/QCD_600000_sampled_100000_topk.h5"
-OUTPUTFILE=output/sampled_jets/test_jets.h5
+OUTPUTFILE="/hpcwork/rwth0934/hep_foundation_model/sampled_jets/TOP_600000_sampled_100000_topk.h5"
+#OUTPUTFILE=output/sampled_jets/test_jets.h5
+N_JETS=100000
+BATCH_SIZE=100
+MAX_LENGTH=100
+TOPK=5000
 
 #print version of repo:
 python util/gitversion.py
 
-python sample.py --model_path "$INPUTFILE" --output_file "$OUTPUTFILE" --n_jets 5000 --batch_size 100 --max_length 100 --topk 5000
+python sample.py --model_path "$INPUTFILE" \
+                 --output_file "$OUTPUTFILE" \
+                 --n_jets $N_JETS \
+                 --batch_size $BATCH_SIZE \
+                 --max_length $MAX_LENGTH \
+                 --topk $TOPK
