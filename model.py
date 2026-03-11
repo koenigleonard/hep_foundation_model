@@ -59,7 +59,8 @@ class JetTransformer(nn.Module):
                  dropout = 0.1,
                  add_start = True,
                  add_stop = True,
-                 causal_mask = True):
+                 causal_mask = True,
+                 linear_output = False):
         
         super().__init__()
 
@@ -133,10 +134,14 @@ class JetTransformer(nn.Module):
         #this prevents overfitting, so the model learns not to rely on specific single neurons
         self.dropout = nn.Dropout(dropout)
         #--- > (256 DIM EMBEDDING)
-        self.output_layer = FactorizedOutputHead(hidden_dim = self.hidden_dim,
-                                                 num_features = self.num_features,
-                                                 num_bins = self.voc_bins, #here we do not count the padding bin but need 
-                                                )
+
+        if linear_output:
+            self.output_layer = nn.Linear(hidden_dim, self.voc_size)
+        else:
+            self.output_layer = FactorizedOutputHead(hidden_dim = self.hidden_dim,
+                                                    num_features = self.num_features,
+                                                    num_bins = self.voc_bins, #here we do not count the padding bin but need 
+                                                    )
 
         #---> logit (42*32*32) DIM 
         #define output layer

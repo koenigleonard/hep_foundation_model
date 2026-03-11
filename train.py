@@ -28,6 +28,7 @@ def build_model(args):
         add_start=args.add_start,
         add_stop=args.add_stop,
         causal_mask = args.causal_mask,
+        linear_output = args.linear_output,
     )
 
     return model
