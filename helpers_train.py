@@ -78,6 +78,7 @@ def parse_inputs():
     parser.add_argument("--input_key", type = str, default = "discretized", help = "if the key of table in the h5 is different it can be specified here")
     parser.add_argument("--linear_output", action = "store_true", help = "wether to use a linear output head instead of a factorized output head. Default is False")
     parser.set_defaults(linear_output = False)
+    parser.add_argument("--checkpoints", type = str, default = "best", help = "sets checkpoint mode. Options: best, all")
     args = parser.parse_args()
     return args
 
@@ -110,6 +111,7 @@ def load_model_checkpoint(checkpoint_path):
         add_start=train_args["add_start"],
         add_stop=train_args["add_stop"],
         causal_mask = train_args["causal_mask"],
+        linear_output = train_args["linear_output"]
     )
 
     newModel.load_state_dict(checkpoint["model_state"])

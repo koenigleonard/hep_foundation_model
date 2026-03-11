@@ -136,8 +136,10 @@ class JetTransformer(nn.Module):
         #--- > (256 DIM EMBEDDING)
 
         if linear_output:
+            print("Using linear output layer.")
             self.output_layer = nn.Linear(hidden_dim, self.voc_size)
         else:
+            print("Using factorized output head.")
             self.output_layer = FactorizedOutputHead(hidden_dim = self.hidden_dim,
                                                     num_features = self.num_features,
                                                     num_bins = self.voc_bins, #here we do not count the padding bin but need 

@@ -105,6 +105,7 @@ if __name__ == "__main__":
         add_start=train_args["add_start"],
         add_stop=train_args["add_stop"],
         causal_mask = train_args["causal_mask"],
+        linear_output = train_args["linear_output"]
     )
     sampleModel.to(device)
 

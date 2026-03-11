@@ -111,11 +111,14 @@ def train(model, train_loader, val_loader, optimizer, scheduler, args,
             f"Val Loss: {avg_val_loss:.4f} | "
             f"LR: {scheduler.get_last_lr()[0]}"
         )
-
-        if avg_val_loss < best_val_loss:
-            best_val_loss = avg_val_loss
-            save_checkpoint(model, optimizer, scheduler, epoch, avg_val_loss, args, name = args.name + "_best", path=os.path.join(args.output_path, "checkpoints"))
-            print(f"Checkpoint saved as: {args.name}_best.pt")
+        if args.checkpoints == "best":
+            if avg_val_loss < best_val_loss:
+                best_val_loss = avg_val_loss
+                save_checkpoint(model, optimizer, scheduler, epoch, avg_val_loss, args, name = args.name + "_best", path=os.path.join(args.output_path, "checkpoints"))
+                print(f"Checkpoint saved as: {args.name}_best.pt")
+        if args.checkpoints == "all":
+                save_checkpoint(model, optimizer, scheduler, epoch, avg_val_loss, args, name = args.name + f"_epoch_{epoch}", path=os.path.join(args.output_path, "checkpoints"))
+                print(f"Checkpoint saved as: {args.name}_epoch_{epoch}.pt")
 
         ### logging
         log_data = {
