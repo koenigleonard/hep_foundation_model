@@ -3,12 +3,11 @@
 ### Job Parameters 
 #SBATCH --ntasks=1              
 #SBATCH --time=04:00:00         
-#SBATCH --job-name=train_top
+#SBATCH --job-name=train_top_linear
 #SBATCH --output=logs/%x_%j.out
 #SBATCH --account=rwth0934  # Replace with your project-id or delete the line
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=4
-#SBATCH --exclude=n23g0001
 #SBATCH -p c23g
 
 ### Program Code
@@ -24,14 +23,14 @@ module load intel
 #---- create log dir
 mkdir -p logs
 
-INPUTFILE="/hpcwork/rwth0934/hep_foundation_model/preprocessed_data/Top_train_discrete_pT_eta_phi.h5"
+INPUTFILE="/hpcwork/rwth0934/hep_foundation_model/preprocessed_data/TTBar_train_processed.h5"
 #INPUTFILE="processed_data/TTBar_5000_processed_train.h5"
 OUTPUT_PATH="/hpcwork/rwth0934/hep_foundation_model/checkpoints/"
-NAME="TOP_600000"
+NAME="JETCLASS_TTBar_600000_LINEAR"
 N_JETS=600000
 N_JETS_VAL=200000
-NUM_CONST=50
-NUM_EPOCHS=50
+NUM_CONST=128
+NUM_EPOCHS=20
 BATCH_SIZE=100
 
 #print version of repo:
@@ -45,4 +44,5 @@ python train.py --data_path "$INPUTFILE" \
                 --n_jets $N_JETS \
                 --n_jets_val $N_JETS_VAL \
                 --batch_size $BATCH_SIZE \
-                --input_key df
+                --checkpoints all \
+                --linear_output

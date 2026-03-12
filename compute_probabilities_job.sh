@@ -1,4 +1,4 @@
-#!/usr/bin/zsh 
+#!/usr/bin/env bash
 
 ### Job Parameters 
 #SBATCH --ntasks=1              
@@ -19,16 +19,74 @@ conda activate torchgpu
 #---- create log dir
 mkdir -p logs
 
-MODELFILE="/hpcwork/rwth0934/hep_foundation_model/checkpoints/checkpoints/TOP_600000_best.pt"
-INPUTFILE="/hpcwork/rwth0934/hep_foundation_model/preprocessed_data/QCD_test_discrete_pT_eta_phi.h5"
-OUTPUTFILE="output/plot_data/probs_50_epochs/top_qcd.csv"
-
 #print version of repo:h/hep_foundation_model/outp
 python util/gitversion.py
 
-python compute_probabilities.py --model_path "$MODELFILE" \
-                                --data_path "$INPUTFILE" \
-                                --output_file "$OUTPUTFILE" \
-                                --n_jets 50000 \
-                                --batch_size 100 \
-                                --input_key df
+DATASET="JETCLASS"
+
+TAG="test" #which dataset should be used
+N_JETS=50000 #number of jets taken out of each test set
+BATCH_SIZE=50
+NUM_CONST=128
+
+OUTPUTMODE="LINEAR"
+
+epochs=(
+    "8"
+    "5"
+)
+
+classes=(
+    "TTBar"
+    "QCD"
+)
+
+for i in "${!epochs[@]}"; do
+    for j in "${!classes[@]}"; do
+        MODELFILE="/hpcwork/rwth0934/hep_foundation_model/checkpoints/checkpoints/${DATASET}_${classes[$i]}_600000_${OUTPUTMODE}_epoch_${epochs[$i]}.pt"
+        INPUTFILE="/hpcwork/rwth0934/hep_foundation_model/preprocessed_data/${classes[$j]}_${TAG}_processed.h5"
+        OUTPUTFILE="output/plot_data_jetclass/probs_best_epoch/${classes[$i]}_${OUTPUTMODE}_${classes[$j]}_${TAG}.csv"
+
+        # echo "$MODELFILE"
+        # echo "$INPUTFILE"
+        # echo "$OUTPUTFILE"
+
+        python compute_probabilities.py --model_path "$MODELFILE" \
+                                        --data_path "$INPUTFILE" \
+                                        --output_file "$OUTPUTFILE" \
+                                        --n_jets $N_JETS \
+                                        --batch_size $BATCH_SIZE \
+                                        --num_const $NUM_CONST
+    done
+done
+
+OUTPUTMODE="FACTORIZED"
+
+epochs=(
+    "16"
+    "12"
+)
+
+classes=(
+    "TTBar"
+    "QCD"
+)
+
+for i in "${!epochs[@]}"; do
+    for j in "${!classes[@]}"; do
+        MODELFILE="/hpcwork/rwth0934/hep_foundation_model/checkpoints/checkpoints/${DATASET}_${classes[$i]}_600000_${OUTPUTMODE}_epoch_${epochs[$i]}.pt"
+        INPUTFILE="/hpcwork/rwth0934/hep_foundation_model/preprocessed_data/${classes[$j]}_${TAG}_processed.h5"
+        OUTPUTFILE="output/plot_data_jetclass/probs_best_epoch/${classes[$i]}_${OUTPUTMODE}_${classes[$j]}.csv"
+
+        # echo "$MODELFILE"
+        # echo "$INPUTFILE"
+        # echo "$OUTPUTFILE"
+
+        python compute_probabilities.py --model_path "$MODELFILE" \
+                                        --data_path "$INPUTFILE" \
+                                        --output_file "$OUTPUTFILE" \
+                                        --n_jets $N_JETS \
+                                        --batch_size $BATCH_SIZE \
+                                        --num_const $NUM_CONST
+    done
+done

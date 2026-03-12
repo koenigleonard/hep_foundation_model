@@ -15,8 +15,12 @@ conda activate torchgpu
 #---- create log dir
 mkdir -p logs
 
-INPUTFILE="/hpcwork/rwth0934/hep_foundation_model/JetClass/TTBar_val.h5"
-#OUTPUTFILE="/hpcwork/rwth0934/hep_foundation_model/preprocessed_data/TTBar_val_processed.h5"
-OUTPUTFILE=processed_data/TTBar_5000_val.h5
+INPUTFILE="/hpcwork/rwth0934/hep_foundation_model/JetClass/ZJetsToNuNu_test.h5"
+OUTPUTFILE="/hpcwork/rwth0934/hep_foundation_model/preprocessed_data/QCD_test_processed.h5"
+#OUTPUTFILE=processed_data/TTBar_600000_val.h5
+N_JETS=600000
 
-python preprocess.py --input_file "$INPUTFILE" --output_file "$OUTPUTFILE" --n_jets 5000 --pt_min -0.774310290813446 --pt_max 6.149449825286865
+python preprocess.py --input_file "$INPUTFILE" \
+                     --output_file "$OUTPUTFILE" \
+                     --all \
+                     --pt_min -0.7633162140846252 --pt_max 6.748834133148193

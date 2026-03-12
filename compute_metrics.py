@@ -69,7 +69,7 @@ def metrics(
     progress_bar.close()
 
     total_time = time.time() - start_time
-    print(f"\nFinished sampling {n_jets} jets")
+    print(f"\nFinished computing metrics of {n_jets} jets")
     print(f"Total time: {total_time:.2f} s")
     print(f"Average speed: {n_jets / total_time:.2f} jets/s")    
 

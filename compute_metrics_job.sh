@@ -3,7 +3,7 @@
 ### Job Parameters 
 #SBATCH --ntasks=1              
 #SBATCH --time=01:00:00         
-#SBATCH --job-name=sample_top
+#SBATCH --job-name=compute_metrics
 #SBATCH --output=logs/%x_%j.out
 #SBATCH --account=rwth0934  # Replace with your project-id or delete the line
 #SBATCH --gres=gpu:1
@@ -25,21 +25,22 @@ module load intel
 #---- create log dir
 mkdir -p logs
 
-INPUTFILE="/hpcwork/rwth0934/hep_foundation_model/checkpoints/checkpoints/JETCLASS_QCD_600000_LINEAR_epoch_5.pt"
-#INPUTFILE="processed_data/TTBar_5000_processed_train.h5"
-OUTPUTFILE="/hpcwork/rwth0934/hep_foundation_model/sampled_jets/QCD_600000_LINEAR_sampled_50000_topk.h5"
-#OUTPUTFILE=output/sampled_jets/test_jets.h5
+#INPUTFILE="/hpcwork/rwth0934/hep_foundation_model/sampled_jets/TTBar_600000_FACTORIZED_sampled_50000_topk.h5"
+INPUTFILE=output/sampled_jets/test_jets.h5
+OUTPUTFILE="output/plot_data_jetclass/metrics/TTBar_600000_FACTORIZED_sampled_50000_topk.h5"
+
 N_JETS=50000
 BATCH_SIZE=100
-MAX_LENGTH=200
-TOPK=5000
+NUM_CONST=200
+INPUTKEY="sampled_jets"
 
 #print version of repo:
 python util/gitversion.py
 
-python sample.py --model_path "$INPUTFILE" \
+python compute_metrics.py --data_path "$INPUTFILE" \
                  --output_file "$OUTPUTFILE" \
-                 --n_jets $N_JETS \
                  --batch_size $BATCH_SIZE \
-                 --max_length $MAX_LENGTH \
-                 --topk $TOPK
+                 --num_const $NUM_CONST \
+                 --pt_min -0.7633162140846252 --pt_max 6.748834133148193 \
+                 --eta_min -0.8 --eta_max 0.8 \
+                 --phi_min -0.8 --phi_max 0.8
