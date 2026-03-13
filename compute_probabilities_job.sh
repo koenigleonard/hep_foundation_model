@@ -2,7 +2,7 @@
 
 ### Job Parameters 
 #SBATCH --ntasks=1              
-#SBATCH --time=00:15:00         
+#SBATCH --time=01:00:00         
 #SBATCH --job-name=prob_job
 #SBATCH --output=logs/%x_%j.out
 #SBATCH --account=rwth0934  # Replace with your project-id or delete the line
@@ -24,13 +24,13 @@ python util/gitversion.py
 
 DATASET="JETCLASS"
 
-TAG="test" #which dataset should be used
+TAG="val" #which dataset should be used
 N_JETS=50000 #number of jets taken out of each test set
 BATCH_SIZE=50
 NUM_CONST=128
 
 OUTPUTMODE="LINEAR"
-
+#denots which epoch was the best in the respective trainings run 
 epochs=(
     "8"
     "5"
@@ -76,7 +76,7 @@ for i in "${!epochs[@]}"; do
     for j in "${!classes[@]}"; do
         MODELFILE="/hpcwork/rwth0934/hep_foundation_model/checkpoints/checkpoints/${DATASET}_${classes[$i]}_600000_${OUTPUTMODE}_epoch_${epochs[$i]}.pt"
         INPUTFILE="/hpcwork/rwth0934/hep_foundation_model/preprocessed_data/${classes[$j]}_${TAG}_processed.h5"
-        OUTPUTFILE="output/plot_data_jetclass/probs_best_epoch/${classes[$i]}_${OUTPUTMODE}_${classes[$j]}.csv"
+        OUTPUTFILE="output/plot_data_jetclass/probs_best_epoch/${classes[$i]}_${OUTPUTMODE}_${classes[$j]}_${TAG}.csv"
 
         # echo "$MODELFILE"
         # echo "$INPUTFILE"
