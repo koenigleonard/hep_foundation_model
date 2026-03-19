@@ -41,9 +41,10 @@ def get_scheduler(optimizer, total_steps, args):
     elif args.scheduler == "cosine_restarts":
         scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
             optimizer,
-            T_0 = 5 * total_steps
+            T_0 = args.restart_period * total_steps,
+            eta_min = 5e-6
         )
-        print("Using cosine restart scheduler.")
+        print(f"Using cosine restart scheduler with a T_0 = {args.restart_period} and eta_min = {5e-6}")
     elif args.scheduler == "exp":
 
         gamma = args.gamma**(1/total_steps)
@@ -104,7 +105,8 @@ def parse_inputs():
     parser.add_argument("--linear_output", action = "store_true", help = "wether to use a linear output head instead of a factorized output head. Default is False")
     parser.set_defaults(linear_output = False)
     parser.add_argument("--checkpoints", type = str, default = "all", help = "sets checkpoint mode. Options: best, all")
-    parser.add_argument("--scheduler", type = str, default = "constant", help = "which scheduler is used for training (constant, warmup_cosine, cosine_restarts)")
+    parser.add_argument("--scheduler", type = str, default = "constant", help = "which scheduler is used for training (constant, warmup_cosine, cosine_restarts, cosine)")
+    parser.add_argument("--restart_period", type = int, default = 10, help = "Number of epoch until the first restart. cosine_restarts")
     parser.add_argument("--gamma", type = float, default = 0.8, help = "sets the factor by which LR is reduced every epoch, only used with exponential scheduler")
     parser.add_argument("--early_stopping", action = "store_true", help = "if early stopping should be used.")
     parser.set_defaults(early_stopping = False)
