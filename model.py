@@ -77,10 +77,10 @@ class JetTransformer(nn.Module):
 
         if add_start:
             self.num_bins = [x + 1 for x in self.num_bins]
-            print("Added start token!")
+            #print("Added start token!")
         if add_stop:
             self.num_bins = [x + 1 for x in self.num_bins]
-            print("Added stop token!")
+            #print("Added stop token!")
 
         num_bins = self.num_bins
 
@@ -92,9 +92,9 @@ class JetTransformer(nn.Module):
         self.voc_bins = [x + 1 for x in self.num_bins] #the max bin with padding included --> (43, 33, 33) (or the number of different bins without padding)
         self.voc_size = np.prod(self.voc_bins) #voc sizes without padding (computed from voc_bins)
 
-        print(f"Max bins without padding: Num_bins: {self.num_bins}")
-        print(f"---> Number of different pt, eta, phi WITH padding: total_voc_bin: {self.total_voc_bins}")
-        print(f"---> Number of different pt, eta, phi WITHOUT padding: voc_bin: {self.voc_bins}")
+        # print(f"Max bins without padding: Num_bins: {self.num_bins}")
+        # print(f"---> Number of different pt, eta, phi WITH padding: total_voc_bin: {self.total_voc_bins}")
+        # print(f"---> Number of different pt, eta, phi WITHOUT padding: voc_bin: {self.voc_bins}")
 
         #chooses pad bin to total_bins +1 in each feature 
         self.PAD_BIN = [bins + 1 for bins in self.num_bins]
@@ -103,7 +103,7 @@ class JetTransformer(nn.Module):
 
         self.PAD_IDX = -1
 
-        print(f"Bins reserved for PAD: {self.PAD_BIN}")
+        # print(f"Bins reserved for PAD: {self.PAD_BIN}")
 
         #----- adding all different layers to the network
         #we want to embedd all features seperately so we a embedding layer with 3 parrallel embeddings
@@ -255,14 +255,25 @@ class JetTransformer(nn.Module):
             probs = probs.masked_fill(~mask, 0.0)
 
         #compute target ids from target tokens
-        #target_ids = self.tuple_to_index(targets[..., 0], targets[..., 1], targets[..., 2], self.num_bins) # ids in (-1, 44394) ##wrong
-
         target_ids = self.tuple_to_index(targets[..., 0], targets[..., 1], targets[..., 2], self.voc_bins) # ids in (-1, 46.826)
 
         #shift targets to the right, because t_id1 contains what logit_0 shWould predict
         target_ids = target_ids[:, 1:]
 
         padding_mask = target_ids == self.PAD_IDX
+
+        # #### debug
+        # row = torch.argmax(target_ids.max(dim=1).values)
+
+        # print(f"Targets = {targets}")
+        # print(f"Target_ids = {target_ids} shape = {target_ids.shape}")
+        # print(f"max id = {target_ids.max()}, min id = {target_ids.min()}, row_max = {row}")
+
+        # #print(f"row_before_max = {targets[row-1]}")
+        # print(f"row_with_max_ids = {target_ids[row]}")
+        # print(f"row_with_max= {targets[row]}")
+        # #######
+
         #compute the prob that each particle id in target_ids shows up
         target_ids = target_ids.masked_fill(padding_mask, 0)
         probs = probs.gather(
@@ -336,15 +347,6 @@ class JetTransformer(nn.Module):
             #compute tuple from id if -1 -> (-1, -1, -1)
             pt, eta, phi = self.index_to_tuple(next_ids, self.voc_bins)
 
-            #####################################
-            #debug for producing artificial stop tokens
-            #for i in range(batch_size):
-            #    if pt[i] == 20:
-            #        pt[i] = self.STOP_BIN[0]
-            #        eta[i] = self.STOP_BIN[1]
-            #        phi[i] = self.STOP_BIN[2]
-            ####################################
-
             next_tokens = torch.stack([pt, eta, phi], dim=-1).unsqueeze(1)
 
             x = torch.cat([x, next_tokens], dim = 1)
@@ -397,6 +399,13 @@ class JetTransformer(nn.Module):
             )
             out[~padding_mask] -= 1
             
+
+        # #####################################
+        # #debug 
+        # if (out == self.PAD_BIN[0]).any().item():
+        #     print(f"out = {out}")
+        # ####################################
+
         return out    
             
     def tuple_to_index(self, pt, eta, phi, num_bins):

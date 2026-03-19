@@ -5,6 +5,7 @@ from helpers_train import *
 import dataset
 from torch.utils.data import DataLoader
 import pandas as pd
+import time
 
 from torch.amp import autocast, GradScaler
 
@@ -33,7 +34,7 @@ def build_model(args):
 
     return model
 
-def build_dataloader(args, tag = "train"):
+def build_dataloader(args, n_jets, tag = "train"):
     data_loader = DataLoader(JetDataSet(
         data_dir = args.data_path.replace("train", tag),
         tag = tag,
@@ -42,11 +43,11 @@ def build_dataloader(args, tag = "train"):
         num_const=args.num_const,
         add_stop=args.add_stop,
         add_start=args.add_start,
-        n_jets=args.n_jets,
+        n_jets=n_jets,
         key = args.input_key,
         ),
-        batch_size=args.batch_size,
-        shuffle=True, # optimization
+        batch_size=args.batch_size_val if tag == "val" else args.batch_size,
+        shuffle= not args.no_shuffle, # optimization
         num_workers=4,            
         pin_memory=True,
         persistent_workers=True,
@@ -66,12 +67,33 @@ def train(model, train_loader, val_loader, optimizer, scheduler, args,
     scaler = GradScaler("cuda")
 
     best_val_loss = float("inf")
+    
+    #counter for early stopping
+    counter = 0
 
-    # if not args.contin:
-    #     os.remove(os.path.join(args.output_path, f"{args.name}_training_log.csv"))
+    training_step = 0
+    epoch_steps = int(len(train_loader))
+    #eval_steps = int(epoch_steps/args.val_frequency)
+
+    ema_loss = None
+    alpha = args.ema_alpha
+
+    #print(f"Evaluating every {eval_steps} steps")
+
+    if not args.contin and os.path.exists(os.path.join(args.output_path, f"{args.name}_training_log.csv")):
+        os.remove(os.path.join(args.output_path, f"{args.name}_training_log.csv"))
+
+    if args.verbose_output:
+        if not args.contin and os.path.exists(os.path.join(args.output_path, f"{args.name}_batch_loss.csv")):
+            os.remove(os.path.join(args.output_path, f"{args.name}_batch_loss.csv"))
 
     for epoch in range(epochs):
-        total_train_loss = 0
+
+        stop = False
+        #for timing length of epoch
+        start_time = time.time()
+
+        avg_val_loss = 0
 
         progress_bar = tqdm(
             train_loader,
@@ -79,6 +101,8 @@ def train(model, train_loader, val_loader, optimizer, scheduler, args,
             leave = True
         )
         for x in progress_bar:
+
+            training_step += 1
             #move batch to gpu if possible
             x = x.to(device)
             optimizer.zero_grad(set_to_none = True)
@@ -94,36 +118,63 @@ def train(model, train_loader, val_loader, optimizer, scheduler, args,
             scaler.step(optimizer)
             scaler.update()
             scheduler.step()
+ 
+            if ema_loss is None:
+                ema_loss = loss.item()
+            else:
+                ema_loss = alpha * ema_loss + (1 - alpha) * loss.item()
 
-            total_train_loss += loss.item()
+            if args.verbose_output:
+                ### logging
+                log_data = {
+                    "step": training_step,
+                    "ema_loss": ema_loss,
+                    "batch_loss": loss.item(),
+                    "lr": optimizer.param_groups[0]["lr"],
+                }
+
+                df = pd.DataFrame([log_data])
+
+                df.to_csv(
+                    os.path.join(args.output_path, f"{args.name}_batch_loss.csv"),
+                    mode="a",
+                    header=not os.path.exists(os.path.join(args.output_path, f"{args.name}_batch_loss.csv")),
+                    index=False
+                )
 
             #update progress bar
             progress_bar.set_postfix(loss = loss.item())
 
-        avg_train_loss = total_train_loss / len(train_loader) #dividing by number of batches
-
-        ### run validation after epoc
+        #rund validation on validation set
         avg_val_loss = validate(model, val_loader)
+        model.train()
 
-        print(
-            f"Epoch {epoch+1}/{epochs} finished | "
-            f"Train Loss: {avg_train_loss:.4f} | "
-            f"Val Loss: {avg_val_loss:.4f} | "
-            f"LR: {scheduler.get_last_lr()[0]}"
-        )
-        if args.checkpoints == "best":
-            if avg_val_loss < best_val_loss:
+        #check for saving and early stopping
+        #save only best model
+        if args.checkpoints == "best" or args.checkpoints == "all":
+            if avg_val_loss < best_val_loss - args.delta_min:
                 best_val_loss = avg_val_loss
                 save_checkpoint(model, optimizer, scheduler, epoch, avg_val_loss, args, name = args.name + "_best", path=os.path.join(args.output_path, "checkpoints"))
-                print(f"Checkpoint saved as: {args.name}_best.pt")
+                print(f" Checkpoint saved as: {args.name}_best.pt")
+
+                counter = 0
+                stop = False
+            else:
+                counter += 1
+
+        #save all models after the epochs
         if args.checkpoints == "all":
-                save_checkpoint(model, optimizer, scheduler, epoch, avg_val_loss, args, name = args.name + f"_epoch_{epoch}", path=os.path.join(args.output_path, "checkpoints"))
-                print(f"Checkpoint saved as: {args.name}_epoch_{epoch}.pt")
+            save_checkpoint(model, optimizer, scheduler, epoch, avg_val_loss, args, name = args.name + f"_epoch_{epoch}", path=os.path.join(args.output_path, "checkpoints"))
+            print(f"Checkpoint saved as: {args.name}_epoch_{epoch}.pt")
+
+
+        if counter >= args.patience:
+            stop = True
 
         ### logging
         log_data = {
-            "epoch": epoch,
-            "train_loss": avg_train_loss,
+            "step": training_step,
+             "train_loss": ema_loss, 
             "val_loss": avg_val_loss,
             "lr": optimizer.param_groups[0]["lr"],
         }
@@ -137,6 +188,19 @@ def train(model, train_loader, val_loader, optimizer, scheduler, args,
             index=False
         )
 
+        total_time = time.time() - start_time
+
+        print(
+            f"Epoch {epoch+1}/{epochs} [Finished] | "
+            f"Train Loss: {ema_loss:.4f} | "
+            f"Val Loss: {avg_val_loss:.4f} | "
+            f"LR: {scheduler.get_last_lr()[0]} | "
+            f"Time: {total_time:.2f} s"
+        )
+
+        if stop and args.early_stopping:
+            print(" Early stopping triggered. Stopping training.")
+            break
 
 #for running the validation set
 def validate(model, dataloader):
@@ -162,14 +226,20 @@ if __name__ == "__main__":
     args = parse_inputs()
 
     print("Running trainings process:")
+    print("Trainings parameter:" )
+    print("-" * 30)
+    for key, value in vars(args).items():
+        print(f"{key:<15} | {value}")
     print(f"Running on device: {device}")
 
-    #load datasets
-    train_loader = build_dataloader(args, tag = "train")
-    print(f"Training set size: {len(train_loader)}")
+    os.makedirs(args.output_path, exist_ok=True)
 
-    val_loader = build_dataloader(args, tag = "val")
-    print(f"Validation set size: {len(val_loader)}")
+    #load datasets
+    train_loader = build_dataloader(args,n_jets=args.n_jets, tag = "train")
+    print(f"Training set number batches: {len(train_loader)}")
+
+    val_loader = build_dataloader(args, n_jets = args.n_jets_val, tag = "val")
+    print(f"Validation set number batches: {len(val_loader)}")
 
     #construct model
     model = build_model(args)
@@ -181,15 +251,11 @@ if __name__ == "__main__":
         model.parameters(), lr = args.lr,
     )
 
-    #create scheduler
-    scheduler = warmup_cosine_schedule(
-        optimizer,
-        warmup_steps=int(0.1*len(train_loader)*args.num_epochs),
-        total_steps=len(train_loader)*args.num_epochs
-    )
+    # optimizer = torch.optim.SGD(
+    #     model.parameters(),
+    #     lr=args.lr,
+    # )
 
-    #print(train_loader.dataset[:, : , :])
+    scheduler = get_scheduler(optimizer, total_steps= len(train_loader), args= args)
 
     train(model, train_loader, val_loader, optimizer, scheduler, args, epochs=args.num_epochs)
-
-

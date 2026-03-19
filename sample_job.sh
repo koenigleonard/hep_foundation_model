@@ -1,18 +1,16 @@
-#!/usr/bin/zsh 
+#!/bin/bash
 
-### Job Parameters 
-#SBATCH --ntasks=1              
-#SBATCH --time=01:00:00         
-#SBATCH --job-name=sample_top
-#SBATCH --output=logs/%x_%j.out
-#SBATCH --account=rwth0934  # Replace with your project-id or delete the line
+#SBATCH --ntasks=1
+#SBATCH --time=00:15:00
+#SBATCH --job-name=sample_jets
+#SBATCH --output=logs/%x_%A_%a.out
+#SBATCH --account=rwth0934
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=4
-#SBATCH --exclude=n23g0001
 #SBATCH -p c23g
+#SBATCH --array=0-1   # adjust if more classes
 
-### Program Code
-#---- activate conda
+# activate conda
 source ~/miniforge/etc/profile.d/conda.sh
 conda activate torchgpu
 
@@ -22,24 +20,37 @@ module purge
 module load CUDA
 module load intel
 
-#---- create log dir
 mkdir -p logs
 
-INPUTFILE="/hpcwork/rwth0934/hep_foundation_model/checkpoints/checkpoints/JETCLASS_QCD_600000_LINEAR_epoch_5.pt"
-#INPUTFILE="processed_data/TTBar_5000_processed_train.h5"
-OUTPUTFILE="/hpcwork/rwth0934/hep_foundation_model/sampled_jets/QCD_600000_LINEAR_sampled_50000_topk.h5"
-#OUTPUTFILE=output/sampled_jets/test_jets.h5
+# parameters
+DATASET="JETCLASS"
+FOLDER="${DATASET}_600000_constant"
 N_JETS=50000
-BATCH_SIZE=100
-MAX_LENGTH=200
+BATCH_SIZE=500
+MAX_LENGTH=128
 TOPK=5000
 
-#print version of repo:
+# classes to sample
+classes=("TTBar" "QCD")
+
+# select class based on array index
+CLASS=${classes[$SLURM_ARRAY_TASK_ID]}
+
+# paths
+INPUTFILE="/hpcwork/rwth0934/hep_foundation_model/training/${FOLDER}/checkpoints/${CLASS}_best.pt"
+OUTPUTDIR="/hpcwork/rwth0934/hep_foundation_model/sampled_jets"
+OUTPUTFILE="${OUTPUTDIR}/${CLASS}_${FOLDER}_${N_JETS}_topk.h5"
+
+mkdir -p "$OUTPUTDIR"
+
+# print git version
 python util/gitversion.py
 
-python sample.py --model_path "$INPUTFILE" \
-                 --output_file "$OUTPUTFILE" \
-                 --n_jets $N_JETS \
-                 --batch_size $BATCH_SIZE \
-                 --max_length $MAX_LENGTH \
-                 --topk $TOPK
+# run sampling
+python sample.py \
+    --model_path "$INPUTFILE" \
+    --output_file "$OUTPUTFILE" \
+    --n_jets $N_JETS \
+    --batch_size $BATCH_SIZE \
+    --max_length $MAX_LENGTH \
+    --topk $TOPK

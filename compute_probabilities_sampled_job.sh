@@ -2,7 +2,7 @@
 
 #SBATCH --ntasks=1
 #SBATCH --time=00:03:00
-#SBATCH --job-name=probs
+#SBATCH --job-name=prob_cosine
 #SBATCH --output=logs/%x_%A_%a.out
 #SBATCH --account=rwth0934
 #SBATCH --gres=gpu:1
@@ -21,7 +21,7 @@ python util/gitversion.py
 DATASET="JETCLASS"
 FOLDER="${DATASET}_600000_constant"
 
-TAG="train"
+TAG="sampled"
 N_JETS=50000
 BATCH_SIZE=50
 NUM_CONST=100
@@ -36,7 +36,7 @@ i=$((SLURM_ARRAY_TASK_ID / 2))
 j=$((SLURM_ARRAY_TASK_ID % 2))
 
 MODELFILE="/hpcwork/rwth0934/hep_foundation_model/training/${FOLDER}/checkpoints/${classes[$i]}_best.pt"
-INPUTFILE="/hpcwork/rwth0934/hep_foundation_model/preprocessed_data/${classes[$j]}_${TAG}_processed.h5"
+INPUTFILE="/hpcwork/rwth0934/hep_foundation_model/sampled_jets/${classes[$j]}_${FOLDER}_50000_topk.h5"
 OUTPUTFILE="${OUTPUTPATH}/${classes[$i]}_${classes[$j]}_${TAG}.csv"
 
 python compute_probabilities.py \
@@ -45,4 +45,6 @@ python compute_probabilities.py \
     --output_file "$OUTPUTFILE" \
     --n_jets $N_JETS \
     --batch_size $BATCH_SIZE \
-    --num_const $NUM_CONST
+    --num_const $NUM_CONST \
+    --input_key "sampled_jets" \
+    --h5

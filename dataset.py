@@ -3,6 +3,7 @@ import numpy as np
 import os
 import torch
 from torch.utils.data import Dataset
+import h5py
 
 #creates a torch dataset from a preprocessed h5 file
 class JetDataSet(Dataset):
@@ -13,10 +14,16 @@ class JetDataSet(Dataset):
                  add_stop = True,
                  add_start = True,
                  n_jets = None,
-                 key = "discretized"
+                 key = "discretized",
+                 h5 = False
                  ):
         print(f"Loading Dataset: {tag} | n_jets = {n_jets} | {data_dir}")
-        df = pd.read_hdf(data_dir, key = key, stop = n_jets)
+        if h5:
+            with h5py.File(data_dir, "r") as f:
+                df = pd.DataFrame(np.array(f[key])[:n_jets])
+        else:
+            df = pd.read_hdf(data_dir, key = key, stop = n_jets)
+
         self.data = disc_to_token(df,
                                   num_features=num_features,
                                   num_bins=num_bins,
@@ -64,7 +71,7 @@ def disc_to_token(df,
         )
 
         num_bins= [x +1 for x in num_bins]
-        print("Added start token. New bins are now:", num_bins)
+        #print("Added start token. New bins are now:", num_bins)
     #add stop token only if the actual number of const. in the jet is smaller than the limit we have set for const.
     #so if a jet fills all the const dont set a stop token
     if add_end:
@@ -76,7 +83,7 @@ def disc_to_token(df,
 
         x[np.arange(x.shape[0])[valid], jet_length[valid]] = num_bins        
 
-        print("Added stop token. New bins are now:", num_bins)
+        #print("Added stop token. New bins are now:", num_bins)
 
     if to_tensor: 
         x = torch.tensor(x)

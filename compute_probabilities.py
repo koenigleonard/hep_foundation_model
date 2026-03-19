@@ -101,6 +101,7 @@ if __name__ == "__main__":
         add_stop=train_args["add_stop"],
         n_jets=args.n_jets,
         key = args.input_key,
+        h5 = args.h5
         ),
         batch_size=args.batch_size)
 

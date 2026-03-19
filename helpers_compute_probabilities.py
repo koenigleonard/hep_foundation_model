@@ -14,6 +14,8 @@ def parse_inputs():
     parser.add_argument("--output_file", type = str, default = "output/plot_data/probs.csv", help = "file name of the output csv file")
     parser.add_argument("--temperature", type = float , default = 1.0)
     parser.add_argument("--input_key", type = str, default = "discretized", help = "if the key of table in the h5 is different it can be specified here")
+    parser.add_argument("--h5", action="store_true", help = "activate when using sampled jets")
+    parser.set_defaults(h5 = False)
 
     args = parser.parse_args()
     return args
