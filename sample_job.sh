@@ -24,7 +24,7 @@ mkdir -p logs
 
 # parameters
 DATASET="JETCLASS"
-FOLDER="${DATASET}_600000_constant"
+FOLDER="${DATASET}_10000000_cosine_restarts_128"
 N_JETS=50000
 BATCH_SIZE=500
 MAX_LENGTH=128

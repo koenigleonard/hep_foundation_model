@@ -80,6 +80,10 @@ def train(model, train_loader, val_loader, optimizer, scheduler, args,
 
     #print(f"Evaluating every {eval_steps} steps")
 
+    if not args.contin:
+        save_checkpoint(model, optimizer, scheduler, 0, 0, args, name = args.name + "_untrained", path=os.path.join(args.output_path, "checkpoints"))
+        print(f"Checkpoint saved as: {args.name}_untrained.pt")
+
     if not args.contin and os.path.exists(os.path.join(args.output_path, f"{args.name}_training_log.csv")):
         os.remove(os.path.join(args.output_path, f"{args.name}_training_log.csv"))
 
@@ -174,7 +178,7 @@ def train(model, train_loader, val_loader, optimizer, scheduler, args,
         ### logging
         log_data = {
             "step": training_step,
-             "train_loss": ema_loss, 
+            "train_loss": ema_loss, 
             "val_loss": avg_val_loss,
             "lr": optimizer.param_groups[0]["lr"],
         }
