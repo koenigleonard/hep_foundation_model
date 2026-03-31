@@ -11,16 +11,23 @@ TAGS = ["train", "test", "val", "sampled"]
 
 
 # -----------------------------
-# MODEL PATH
+# MODEL PATH (PER CLASS)
 # -----------------------------
-def get_model_path(base, cls, epoch=None, best=False, untrained=False):
-    if best:
+def get_model_path(base, cls, mode, epoch):
+
+    if mode == "best":
         return f"{base}/checkpoints/{cls}_best.pt"
-    if untrained:
+    elif mode == "untrained":
         return f"{base}/checkpoints/{cls}_untrained.pt"
-    return f"{base}/checkpoints/{cls}_epoch_{epoch}.pt"
+    elif mode == "epoch":
+        return f"{base}/checkpoints/{cls}_epoch_{epoch}.pt"
+    else:
+        raise ValueError(f"Unknown mode: {mode}")
 
 
+# -----------------------------
+# DATA
+# -----------------------------
 def get_data_path(base, cls, tag):
     return f"{base}/preprocessed_data/{cls}_{tag}_processed.h5"
 
@@ -74,10 +81,7 @@ def compute_scores(folder, tag):
         scores.append(s_i.values)
         labels.append(np.full(len(s_i), i))
 
-    scores = np.concatenate(scores)
-    labels = np.concatenate(labels)
-
-    return scores, labels
+    return np.concatenate(scores), np.concatenate(labels)
 
 
 # -----------------------------
@@ -85,26 +89,31 @@ def compute_scores(folder, tag):
 # -----------------------------
 def main(args):
 
-    if sum([args.best, args.untrained]) > 1:
-        raise ValueError("Only one of --best or --untrained can be set")
+    # Build per-class config
+    model_config = {
+        "TTBar": (args.ttbar_mode, args.ttbar_epoch),
+        "QCD": (args.qcd_mode, args.qcd_epoch),
+    }
 
-    if args.best:
-        epoch_name = "best"
-    elif args.untrained:
-        epoch_name = "untrained"
-    else:
-        epoch_name = args.epoch
+    # Naming for output
+    name = f"TTBar-{args.ttbar_mode}"
+    if args.ttbar_mode == "epoch":
+        name += f"{args.ttbar_epoch}"
 
-    base_outdir = f"{args.output}/epoch_{epoch_name}"
+    name += f"_QCD-{args.qcd_mode}"
+    if args.qcd_mode == "epoch":
+        name += f"{args.qcd_epoch}"
+
+    base_outdir = f"{args.output}/{name}"
     os.makedirs(base_outdir, exist_ok=True)
 
-    sampled_cache_dir = f"{args.output}/sampled_jets/epoch_{epoch_name}"
+    sampled_cache_dir = f"{base_outdir}/sampled_jets"
     os.makedirs(sampled_cache_dir, exist_ok=True)
 
     all_scores, all_labels, all_tags = [], [], []
     roc_data = {}
 
-    print(f"Running evaluation: {epoch_name}")
+    print(f"Running evaluation: {name}")
 
     for tag in TAGS:
 
@@ -116,18 +125,19 @@ def main(args):
         sampled_files = {}
 
         # -----------------------------
-        # SAMPLING (CACHED)
+        # SAMPLING (PER CLASS MODEL!)
         # -----------------------------
         if tag == "sampled":
 
             for cls in CLASSES:
 
+                mode, epoch = model_config[cls]
+
                 model_path = get_model_path(
                     args.training_folder,
                     cls,
-                    epoch=args.epoch,
-                    best=args.best,
-                    untrained=args.untrained
+                    mode,
+                    epoch
                 )
 
                 sampled_file = f"{sampled_cache_dir}/{cls}.h5"
@@ -146,12 +156,13 @@ def main(args):
         for model_cls in CLASSES:
             for data_cls in CLASSES:
 
+                mode, epoch = model_config[model_cls]
+
                 model_path = get_model_path(
                     args.training_folder,
                     model_cls,
-                    epoch=args.epoch,
-                    best=args.best,
-                    untrained=args.untrained
+                    mode,
+                    epoch
                 )
 
                 if tag == "sampled":
@@ -163,12 +174,12 @@ def main(args):
 
                 output_file = f"{tag_outdir}/{model_cls}_{data_cls}_{tag}.csv"
 
-                print(f"{model_cls} model on {data_cls} ({tag})")
+                print(f"{model_cls}({mode}) on {data_cls} ({tag})")
 
                 run_prob(model_path, data_path, output_file, args, sampled_flag)
 
         # -----------------------------
-        # SCORING + ROC
+        # SCORING
         # -----------------------------
         scores, labels = compute_scores(tag_outdir, tag)
 
@@ -209,12 +220,11 @@ def main(args):
     plt.xlabel(r"$\epsilon_{top}$")
     plt.ylabel(r"$1/\epsilon_{QCD}$")
 
-    plt.title(f"ROC Curves (epoch={epoch_name})")
+    plt.title(f"ROC Curves ({name})")
     plt.legend()
 
     plt.savefig(f"{base_outdir}/roc_all_tags.png", dpi=150)
     plt.close()
-
     # -----------------------------
     # SUMMARY
     # -----------------------------
@@ -230,9 +240,12 @@ if __name__ == "__main__":
     parser.add_argument("--data_folder", required=True)
     parser.add_argument("--output", required=True)
 
-    parser.add_argument("--epoch", type=int, default=None)
-    parser.add_argument("--best", action="store_true")
-    parser.add_argument("--untrained", action="store_true")
+    # per-model control
+    parser.add_argument("--ttbar_mode", choices=["epoch", "best", "untrained"], required=True)
+    parser.add_argument("--qcd_mode", choices=["epoch", "best", "untrained"], required=True)
+
+    parser.add_argument("--ttbar_epoch", type=int, default=None)
+    parser.add_argument("--qcd_epoch", type=int, default=None)
 
     parser.add_argument("--n_jets", type=int, default=50000)
     parser.add_argument("--batch_size", type=int, default=50)
