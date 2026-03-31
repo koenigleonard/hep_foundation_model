@@ -23,31 +23,31 @@ def warmup_cosine_scheduler(optimizer, warmup_steps, total_steps):
 def constant_scheduler(optimizer, total_steps):
     return torch.optim.lr_scheduler.ConstantLR(optimizer, 1.0, total_steps)
 
-def get_scheduler(optimizer, total_steps, args):
+def get_scheduler(optimizer, epoch_steps, args):
 
     if args.scheduler == "warmup_cosine":
         scheduler = warmup_cosine_scheduler(
             optimizer,
-            warmup_steps=int(0.1*total_steps*args.num_epochs),
-            total_steps=total_steps*args.num_epochs
+            warmup_steps=int(0.1*epoch_steps*args.num_epochs),
+            total_steps=epoch_steps*args.num_epochs
         )
         print("Using cosine scheduler with warmup.")
     elif args.scheduler == "constant":
         scheduler = constant_scheduler(
             optimizer,
-            total_steps=total_steps*args.num_epochs
+            total_steps=epoch_steps*args.num_epochs
         )
         print("Using constant scheduler.")
     elif args.scheduler == "cosine_restarts":
         scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
             optimizer,
-            T_0 = args.restart_period * total_steps,
+            T_0 = args.restart_period * epoch_steps,
             eta_min = 5e-6
         )
         print(f"Using cosine restart scheduler with a T_0 = {args.restart_period} and eta_min = {5e-6}")
     elif args.scheduler == "exp":
 
-        gamma = args.gamma**(1/total_steps)
+        gamma = args.gamma**(1/epoch_steps)
 
         scheduler = torch.optim.lr_scheduler.ExponentialLR(
             optimizer,
@@ -58,7 +58,7 @@ def get_scheduler(optimizer, total_steps, args):
 
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             optimizer,
-            T_max= total_steps*args.num_epochs,
+            T_max= epoch_steps*args.num_epochs,
             eta_min= 5e-6)
         
         print(f"Using cosine decay scheduler with eta_min = {5e-6}")
@@ -66,7 +66,7 @@ def get_scheduler(optimizer, total_steps, args):
     else:
         scheduler = constant_scheduler(
             optimizer,
-            total_steps=total_steps*args.num_epochs,
+            total_steps=epoch_steps*args.num_epochs,
         )
         print("Using constant scheduler.")
 
@@ -117,6 +117,13 @@ def parse_inputs():
     parser.set_defaults(verbose_output = False)
     parser.add_argument("--no_shuffle", action = "store_true", help = "if train data set is shuffled after each epoch")
     parser.set_defaults(no_shuffle = False)
+    parser.add_argument("--checkpoint_name", type = str, default = "best.pt", help = "name of model checkpoint if training is continued.")
+    parser.add_argument("--new_lr", type=float, default=None)
+    parser.add_argument("--reset_scheduler", action="store_true")
+    parser.add_argument("--reset_optimizer", action="store_true")
+    parser.set_defaults(reset_scheduler = False)
+    parser.set_defaults(reset_optimizer = False)
+
 
     args = parser.parse_args()
     return args

@@ -58,6 +58,8 @@ def build_dataloader(args, n_jets, tag = "train"):
 
 def train(model, train_loader, val_loader, optimizer, scheduler, args,
           epochs = 10,
+          start_epoch=0,
+          best_val_loss=float("inf"),
           ):
     
     model.to(device)
@@ -71,9 +73,8 @@ def train(model, train_loader, val_loader, optimizer, scheduler, args,
     #counter for early stopping
     counter = 0
 
-    training_step = 0
     epoch_steps = int(len(train_loader))
-    #eval_steps = int(epoch_steps/args.val_frequency)
+    training_step = start_epoch * epoch_steps
 
     ema_loss = None
     alpha = args.ema_alpha
@@ -91,7 +92,7 @@ def train(model, train_loader, val_loader, optimizer, scheduler, args,
         if not args.contin and os.path.exists(os.path.join(args.output_path, f"{args.name}_batch_loss.csv")):
             os.remove(os.path.join(args.output_path, f"{args.name}_batch_loss.csv"))
 
-    for epoch in range(epochs):
+    for epoch in range(start_epoch, epochs):
 
         stop = False
         #for timing length of epoch
@@ -260,6 +261,67 @@ if __name__ == "__main__":
     #     lr=args.lr,
     # )
 
-    scheduler = get_scheduler(optimizer, total_steps= len(train_loader), args= args)
+    scheduler = get_scheduler(optimizer, epoch_steps= len(train_loader), args= args)
 
-    train(model, train_loader, val_loader, optimizer, scheduler, args, epochs=args.num_epochs)
+    start_epoch = 0
+    training_step = 0
+
+    if args.contin:
+        print("Running in continue mode.")
+
+        checkpoint_path = os.path.join(args.output_path, "checkpoints", args.checkpoint_name)
+
+        print(f"Loading checkpoint from {checkpoint_path}")
+        checkpoint = torch.load(checkpoint_path, map_location=device)
+
+        model.load_state_dict({
+                k.replace("_orig_mod.", ""): v
+                for k, v in checkpoint["model_state"].items()
+                })
+
+        #new scheduler handling
+        if args.reset_optimizer:
+            print("Resetting optimizer")
+            optimizer = torch.optim.Adam(model.parameters(), lr=args.new_lr or args.lr)
+        else:
+            optimizer.load_state_dict({
+                    k.replace("_orig_mod.", ""): v
+                    for k, v in checkpoint["optimizer_state"].items()
+                    })
+
+        # Scheduler handling
+        if args.reset_scheduler:
+            print("Resetting scheduler (not loading checkpoint state)")
+            scheduler = get_scheduler(optimizer, epoch_steps=len(train_loader), args=args)
+        else:
+            scheduler.load_state_dict({
+                    k.replace("_orig_mod.", ""): v
+                    for k, v in checkpoint["scheduler_state"].items()
+                    })
+
+        # Override LR if requested
+        if args.new_lr is not None:
+            print(f"Resetting learning rate to: {args.new_lr}")
+
+            for pg in optimizer.param_groups:
+                pg["lr"] = args.new_lr
+
+            if hasattr(scheduler, "base_lrs"):
+                scheduler.base_lrs = [args.new_lr for _ in scheduler.base_lrs]    
+
+        start_epoch = checkpoint["epoch"] + 1
+        best_val_loss = checkpoint.get("val_loss", float("inf"))
+
+        print(f"Resuming from epoch {start_epoch}")
+
+    train(
+        model,
+        train_loader,
+        val_loader,
+        optimizer,
+        scheduler,
+        args,
+        epochs=start_epoch + args.num_epochs,
+        start_epoch=start_epoch,
+        best_val_loss=best_val_loss if args.contin else float("inf"),
+    )
