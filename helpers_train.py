@@ -41,10 +41,10 @@ def get_scheduler(optimizer, epoch_steps, args):
     elif args.scheduler == "cosine_restarts":
         scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
             optimizer,
-            T_0 = args.restart_period * epoch_steps,
-            eta_min = 5e-6
+            T_0 = args.restart_period * epoch_steps + 1,
+            eta_min = args.lr_min,
         )
-        print(f"Using cosine restart scheduler with a T_0 = {args.restart_period} and eta_min = {5e-6}")
+        print(f"Using cosine restart scheduler with a T_0 = {args.restart_period} and eta_min = {args.lr_min}")
     elif args.scheduler == "exp":
 
         gamma = args.gamma**(1/epoch_steps)
@@ -59,9 +59,9 @@ def get_scheduler(optimizer, epoch_steps, args):
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             optimizer,
             T_max= epoch_steps*args.num_epochs,
-            eta_min= 5e-6)
+            eta_min= args.lr_min)
         
-        print(f"Using cosine decay scheduler with eta_min = {5e-6}")
+        print(f"Using cosine decay scheduler with eta_min = {args.lr_min}")
 
     else:
         scheduler = constant_scheduler(
@@ -84,6 +84,7 @@ def parse_inputs():
     parser.set_defaults(add_stop = True)
     parser.add_argument("--num_epochs", type=int, default=20, help="Number of epochs")
     parser.add_argument("--lr", type=float, default=0.001, help="learning rate")
+    parser.add_argument("--lr_min", type = float, default = 5e-6, help = "minimal learning rate used for some schedulers")
     parser.add_argument("--hidden_dim", type=int, default=256, help="Hidden dim of the model")
     parser.add_argument("--num_layers", type=int, default=8, help="Number of transformer layers")
     parser.add_argument("--num_heads", type=int, default=4, help="Number of attention heads")
@@ -123,7 +124,7 @@ def parse_inputs():
     parser.add_argument("--reset_optimizer", action="store_true")
     parser.set_defaults(reset_scheduler = False)
     parser.set_defaults(reset_optimizer = False)
-
+    parser.add_argument("--weight_decay", type = float, default = 0, help = "weight decay for adam optimization.")
 
     args = parser.parse_args()
     return args

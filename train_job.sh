@@ -1,14 +1,15 @@
-#!/usr/bin/zsh 
+#!/bin/bash
 
 ### Job Parameters 
 #SBATCH --ntasks=1              
-#SBATCH --time=00:45:00         
-#SBATCH --job-name=top_restart
+#SBATCH --time=04:00:00         
+#SBATCH --job-name=const_leo_sl
 #SBATCH --output=logs/%x_%j.out
-#SBATCH --account=thes2215  # Replace with your project-id or delete the line
+#SBATCH --account=rwth0934  # Replace with your project-id or delete the line
 #SBATCH --gres=gpu:1
-#SBATCH --cpus-per-task=20
+#SBATCH --cpus-per-task=4
 #SBATCH -p c23g
+#SBATCH --array=0-1   # adjust if more classes
 
 ### Program Code
 #---- activate conda
@@ -25,23 +26,31 @@ mkdir -p logs
 
 DATASET=JETCLASS
 
-CLASS=TTBar
-SCHEDULER=constant
-N_JETS=10000000
-N_JETS_VAL=800000
+SCHEDULER=const
+N_JETS=600000
+N_JETS_VAL=200000
 NUM_CONST=50
-NUM_EPOCHS=1
-BATCH_SIZE=500
-BATCH_SIZE_VAL=1000
+NUM_EPOCHS=50
+BATCH_SIZE=100
+BATCH_SIZE_VAL=100
 LR=0.0001
+LR_MIN=1e-6
 GAMMA=0.9
-DROPOUT=0.1
+DROPOUT=0.0
+WEIGHT_DECAY=0.00001
+
+# # classes to train
+classes=("TTBar" "QCD")
+
+# select class based on array index
+CLASS=${classes[$SLURM_ARRAY_TASK_ID]}
+#CLASS=QCD
 
 #print version of repo:
 python util/gitversion.py
 
-#FOLDER="${DATASET}_${N_JETS}_${SCHEDULER}_50"
-FOLDER="${DATASET}_${N_JETS}_cosine_restarts_50"
+FOLDER="${DATASET}_${N_JETS}_${SCHEDULER}_weight_decay"
+#FOLDER="${DATASET}_${N_JETS}_cosine_restarts_50_2"
 NAME="${CLASS}"
 INPUTFILE="/hpcwork/rwth0934/hep_foundation_model/preprocessed_data/${CLASS}_train_processed.h5"
 OUTPUT_PATH="/hpcwork/rwth0934/hep_foundation_model/training/${FOLDER}"
@@ -59,9 +68,6 @@ python train.py --data_path "$INPUTFILE" \
                 --scheduler $SCHEDULER \
                 --gamma $GAMMA \
                 --dropout $DROPOUT \
+                --weight_decay $WEIGHT_DECAY \
                 --linear_output \
-                --restart_period 30 \
-                --contin \
-                --reset_scheduler \
-                --checkpoint_name "${CLASS}_epoch_29.pt" \
-                --new_lr 0.0001
+                --restart_period 36

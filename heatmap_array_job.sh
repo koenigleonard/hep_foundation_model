@@ -8,7 +8,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=4
 #SBATCH -p c23g
-#SBATCH --array=0-99
+#SBATCH --array=0-360
 
 source ~/miniforge/etc/profile.d/conda.sh
 conda activate torchgpu
@@ -18,13 +18,13 @@ module load CUDA
 module load intel
 
 DATASET="JETCLASS"
-FOLDER="${DATASET}_600000_warmup_cosine"
+FOLDER="${DATASET}_600000_cosine_restarts_orig"
 
 TRAINING_PATH="/hpcwork/rwth0934/hep_foundation_model/training/${FOLDER}"
 DATA_PATH="/hpcwork/rwth0934/hep_foundation_model"
 OUTPUT_PATH="output/evaluation/${FOLDER}"
 
-EPOCHS=(0 2 4 6 8 10 12 14 16 18)
+EPOCHS=(2 4 6 8 10 12 14 16 18 20 22 24 26 28 30 32 34)
 N=${#EPOCHS[@]}
 
 i=$((SLURM_ARRAY_TASK_ID / N))

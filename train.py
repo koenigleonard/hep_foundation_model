@@ -6,6 +6,7 @@ import dataset
 from torch.utils.data import DataLoader
 import pandas as pd
 import time
+import json
 
 from torch.amp import autocast, GradScaler
 
@@ -16,6 +17,19 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.set_float32_matmul_precision("high")
 
 num_features = 3
+
+def save_args_to_file(args):
+    os.makedirs(args.output_path, exist_ok=True)
+
+    file_path = os.path.join(args.output_path, f"{args.name}_config.json")
+
+    # convert Namespace → dict
+    args_dict = vars(args)
+
+    with open(file_path, "w") as f:
+        json.dump(args_dict, f, indent=4)
+
+    print(f"Config saved to: {file_path}")
 
 def build_model(args):
     
@@ -62,6 +76,7 @@ def train(model, train_loader, val_loader, optimizer, scheduler, args,
           best_val_loss=float("inf"),
           ):
     
+    #model
     model.to(device)
     model = torch.compile(model) #pre compiles the model for faster performance
     model.train()
@@ -69,7 +84,7 @@ def train(model, train_loader, val_loader, optimizer, scheduler, args,
     scaler = GradScaler("cuda")
 
     best_val_loss = float("inf")
-    
+
     #counter for early stopping
     counter = 0
 
@@ -93,6 +108,8 @@ def train(model, train_loader, val_loader, optimizer, scheduler, args,
             os.remove(os.path.join(args.output_path, f"{args.name}_batch_loss.csv"))
 
     for epoch in range(start_epoch, epochs):
+
+        total_train_loss = 0
 
         stop = False
         #for timing length of epoch
@@ -124,6 +141,8 @@ def train(model, train_loader, val_loader, optimizer, scheduler, args,
             scaler.update()
             scheduler.step()
  
+            total_train_loss += loss.item()
+
             if ema_loss is None:
                 ema_loss = loss.item()
             else:
@@ -149,6 +168,9 @@ def train(model, train_loader, val_loader, optimizer, scheduler, args,
 
             #update progress bar
             progress_bar.set_postfix(loss = loss.item())
+
+        #compute avg train loss over last epoch
+        avg_train_loss = total_train_loss / len(train_loader)
 
         #rund validation on validation set
         avg_val_loss = validate(model, val_loader)
@@ -179,7 +201,7 @@ def train(model, train_loader, val_loader, optimizer, scheduler, args,
         ### logging
         log_data = {
             "step": training_step,
-            "train_loss": ema_loss, 
+            "train_loss": avg_train_loss, 
             "val_loss": avg_val_loss,
             "lr": optimizer.param_groups[0]["lr"],
         }
@@ -239,6 +261,10 @@ if __name__ == "__main__":
 
     os.makedirs(args.output_path, exist_ok=True)
 
+    # save config next to logs
+    if not args.contin:  # only create new file for fresh runs
+        save_args_to_file(args)
+
     #load datasets
     train_loader = build_dataloader(args,n_jets=args.n_jets, tag = "train")
     print(f"Training set number batches: {len(train_loader)}")
@@ -253,7 +279,8 @@ if __name__ == "__main__":
 
     #add optimizer
     optimizer = torch.optim.Adam(
-        model.parameters(), lr = args.lr,
+        model.parameters(), lr = args.lr, 
+        weight_decay= args.weight_decay,
     )
 
     # optimizer = torch.optim.SGD(
@@ -282,7 +309,8 @@ if __name__ == "__main__":
         #new scheduler handling
         if args.reset_optimizer:
             print("Resetting optimizer")
-            optimizer = torch.optim.Adam(model.parameters(), lr=args.new_lr or args.lr)
+            optimizer = torch.optim.Adam(model.parameters(), lr=args.new_lr or args.lr,
+                                         weight_decay=args.weight_decay)
         else:
             optimizer.load_state_dict({
                     k.replace("_orig_mod.", ""): v
